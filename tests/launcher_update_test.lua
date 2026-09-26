@@ -205,6 +205,32 @@ if workflow then
     "build: so the asset name is built from the mod id")
 end
 
+-- The launcher's "What's New?" renders the RELEASE BODY and never reads a file
+-- in this repo (src/mods/ModUpdate.lua, `cleanBody`), so a release whose body is
+-- GitHub's generated commit notes tells the player nothing about the mod.  The
+-- workflow publishes the "## <version>" section of CHANGELOG.md instead, through
+-- one implementation that CI and this file both point at.
+ok(exists(MOD_ROOT .. "/tools/changelog_section.py"),
+  "build: tools/changelog_section.py is vendored, so CI needs nothing local")
+if workflow then
+  neq(workflow:find("changelog_section.py", 1, true), nil,
+    "build: the workflow publishes the changelog as the release body")
+  eq(workflow:find("generate%-notes"), nil,
+    "build: and not GitHub's generated commit notes")
+  neq(workflow:find("notes%-file", 1), nil,
+    "build: it hands the section to gh as a notes file")
+end
+
+-- ...and the section it will look for is really there.  The workflow FAILS
+-- rather than shipping an empty body, so a version with no section is a broken
+-- release; this catches it before the tag is pushed.
+local changelog = readFile(MOD_ROOT .. "/CHANGELOG.md")
+neq(changelog, nil, "build: CHANGELOG.md is readable")
+if changelog then
+  neq(changelog:find("\n## " .. tostring(VERSION) .. " ", 1, true), nil,
+    "build: and it has a '## " .. tostring(VERSION) .. "' section to publish")
+end
+
 -- The .modkitignore guard.  The tree carries no build output, but a release
 -- built by hand into the repo root would otherwise be folded into the next
 -- pack -- both builders walk the whole tree.  These are exact paths, so they

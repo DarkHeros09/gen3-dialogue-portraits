@@ -22,6 +22,7 @@ tools/dump_class_names.py
 tools/dump_class_pics.py
 tools/dump_trainers.py
 tools/build_release.py
+tools/changelog_section.py
 
 # Player-supplied art.
 #
@@ -47,5 +48,5 @@ tools/build_release.py
 # Exact paths, like every other entry here, so a version bump means renaming
 # them.  `tests/launcher_update_test.lua` fails if they stop matching the
 # manifest's id and version, which is the reminder.
-gen3-dialogue-portraits-1.0.0.modpkg
-gen3-dialogue-portraits-1.0.0.zip
+gen3-dialogue-portraits-1.1.0.modpkg
+gen3-dialogue-portraits-1.1.0.zip

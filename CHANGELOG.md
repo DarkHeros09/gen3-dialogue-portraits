@@ -1,5 +1,478 @@
 # Changelog
 
+## 1.1.0 — portraits that follow the game, not a guess
+
+The first release since 1.0.0, and it folds in every fix cut locally in between
+(1.0.1 through 1.0.5, all detailed below). One theme throughout: a portrait
+appeared where the cart would not have drawn one, or failed to appear where it
+would.
+
+**What changed**
+
+- **The text colour decides.** A box the engine draws in its black/grey "normal"
+  colour gets no portrait — that colour is FRLG's own mark of "nobody is speaking
+  here", used for narration, signs, and item and letter boxes. Oak's aide's
+  letter from Mom is the worked example: the script sets `textcolor 3` before it.
+- **A scene may hand its boxes to several people.** The speaker of a box is the
+  object the script moved most recently before it, so Three Island's
+  bikers-and-locals scene, its boss confrontation, and the dialogue you get by
+  pressing any of them now show the right person on every line instead of one
+  face — or no face at all.
+- **The portrait leaves when the speaker does**, and a speaker who is merely
+  *placed* for their next line keeps theirs. A scripted move of five or more
+  tiles is a walk-off (measured over the whole game: every reposition is 1–4
+  tiles, every walk-off is 6 or more), and a fresh press always starts a fresh
+  conversation.
+- **Celio has a portrait** — graphic 89, the one graphic worn by exactly one
+  object in the game — and so do the **female Psychic's** objects (graphic 23,
+  which the sprite route had declined).
+- **Bill, Daisy and Mr. Fuji** get their cart-drawn Fame Checker portraits, and a
+  scene the NPC starts now names its own actor, so a portrait no longer depends
+  on who began the conversation.
+- **A step inside a script no longer ends the conversation**, so a cutscene that
+  walks the player around no longer drops the speaker's face partway through.
+
+Everything is verified headlessly **and** inside LÖVE 11.5 (50 checks driving the
+real message box and the real decoded scripts), with every fix bite-proven.
+
+## 1.0.5 — the colour says who is speaking, and a scene may have several
+
+Two rules, both taken from the engine rather than invented.
+
+The report:
+
+> *"Any dialogue box using black or grey colored text should not display a
+> portrait. On THREE ISLAND, there is a dialogue scene between a group of bikers
+> and the locals where the portrait assignments are incorrect."*
+
+### One: a black/grey box gets no portrait
+
+FRLG draws a speaking NPC's text in a colour taken from the person the script
+selected — **dark blue for a male, dark red for a female** — and the plain
+**black/grey** "normal" colour for everything that is not a person talking:
+narration, signs, item and letter boxes, and any box whose speaker the engine
+could not identify (`src/core/game3/scripting/adapters.lua` `resolveNpcColor`
+answers NEUTRAL when the script selected no object). The engine already hands the
+answer to the box: `adapters.lua:417/452` put it in `opts.npcColor`, and
+`message.lua:113` turns anything that is not MALE or FEMALE into `COLOR.NORMAL`.
+
+So the mod reads `opts.npcColor` and declines the portrait when it is NEUTRAL —
+the engine's own answer to "is somebody speaking here?", not a second guess.
+Oak's aide's letter from Mom is the worked example: the script sets `textcolor 3`
+before it (`g3:081662de` row 51), so the engine draws it in the black/grey
+colour, and that is why it is bare — quite apart from the aide having walked off.
+Item boxes are the other family (`std:0` and `std:9` set `textcolor 3` too). A
+box carrying no `npcColor` at all is NOT declined: every field box in the game
+carries one, so an absent value means a caller outside the field path (a suite, a
+menu) rather than a black/grey box.
+
+### Two: one script can hand its boxes to several people
+
+`sceneSpeaker` used to collect every object the running script moved and answer
+only if there was exactly ONE. Three Island's bikers-and-locals scene
+(`g3:081679b5`) is built the other way: it moves a local, shows his line, moves
+the biker boss, shows his, and so on for five boxes — so both are actors of the
+one script, the old rule answered "nobody", and the whole scene came out bare.
+The same shape runs the biker-boss confrontation (`g3:08167a59`: seven boxes,
+four different bikers) and the dialogue you get by pressing any of them
+(`g3:0816786f`, which alternates local, biker, local, biker).
+
+The actor of a box is **the object the script moved or turned most recently
+before it**, because that is the scene's own idiom — place the speaker, then show
+their line. The scan starts at the command being executed and walks the callers
+outward from their own call sites (`ops_a.lua:356` pushes `{listKey, index}`), so
+a box opened by a called `std:` stub still finds its actor in the caller. The
+player (`0xFF`) is never an actor.
+
+And because one PRESSED script can hand its boxes to several people, the script's
+actor now **outranks the press record** in `speakerFor`. The pressed object is
+still the speaker whenever the script stages nobody — the ordinary
+`lock`/`faceplayer`/box conversation — which is every other conversation in the
+game.
+
+### What Three Island resolves to now
+
+| box | speaker | portrait |
+| --- | --- | --- |
+| "Are you the boss? Go back to KANTO right now!" | the local (gfx 25) | **none** — the cart drew no bust of him |
+| "Hah? I just got here, pal…" | the biker boss (gfx 53) | **91** |
+| "Your gang of followers have been raising havoc…" | the local | none |
+| "No, man, I don't get it at all…" | the biker | **91** |
+| "Grr… You cowards… So tough in a pack…" | the local | none |
+
+Before this release all five were bare; and in the press-triggered dialogue the
+local's two lines were wearing the pressed biker's face.
+
+### Verification
+
+- **1017 checks, 0 failures** — load 23, menu 29, speaker **409** (up from 404),
+  geometry **515** (up from 507), launcher 41.
+- **In the LÖVE engine**: `.probe/love3/` is **50 checks, 0 failures** (up from
+  35). It now decodes the real `g3:081679b5` from the ROM and asserts the scene
+  box for box — the local's lines must NOT wear the biker's face, the biker's
+  must paint picture 91 — and it pins the colour rule in both directions.
+  `"C:/Program Files/LOVE/lovec.exe" .probe/love3`
+- **Bite-proven in both**: recency removed fails 1 suite + 4 LÖVE checks; the
+  press-priority restored fails 1 suite check; the colour rule removed fails 1 +
+  1.
+- New checks: §20 in `dp3_speaker_test.lua` (the script's actor outranks the
+  press; a press with nothing staged is still the speaker) and two new sections
+  in `dp3_geometry_test.lua` (`XF.colourTests`, `XF.alternatingSceneTests`).
+- Gates on the tree: `validate --strict` ok · `lint` ok · `gen3check --strict`
+  ok ("will load").
+
+### What this does NOT change
+
+Celio (1.0.3), the female Psychic's graphic (1.0.2) and the `LEFT_TILES`
+departure rule (1.0.4) are untouched. The colour rule is checked BEFORE the
+departure rule, so a black/grey box is bare whether or not anybody walked off.
+
+## 1.0.4 — a step is not a walk-off
+
+Two reports about a portrait that was MISSING, and the measurement that settles
+what "the speaker has left" actually means.
+
+The reports:
+
+> *"Oak's aide: 'I'm glad I caught up to you.' — no portrait."*
+>
+> *"Bill: 'ASH, this is my buddy CELIO.' / 'ASH, can I get you to wait for me
+> just a bit?' — no portrait."*
+
+### One: 1.0.3's departure test fired on a step, not a walk-off
+
+1.0.3 generalised the record to the object a box actually resolved to and ended
+it when that object's **cell changed**. That was too eager. Pewter's aide is
+**placed** between his first and second line — the coord paths at (46,22) and
+(46,23) call `g3:081663e6` / `g3:081663fc`, which walk him one or two tiles DOWN
+to stand in front of the player (`g3:0816643e` is one step, `g3:08166441` two) —
+and the old test read that step as a walk-off, dropped the record, and left every
+box after "I'm glad I caught up to you." bare. Reproduced against the real
+decoded script before the fix: box 1 painted, box 2 bare.
+
+The fix is a measured threshold, not a guess. Sweeping every script in the game
+for an NPC moved between two of its own boxes (`.probe/dp3_midmove.lua`, which
+follows `call`/`call_if` into branches — the aide's own exit lives in
+`g3:08166412`, called from between two boxes) gives **858 moves**, and they fall
+into exactly two groups:
+
+| tiles walked | count | what it is |
+| --- | --- | --- |
+| 1 / 2 / 3 / 4 | 267 / 390 / 101 / 23 | a character PLACED for the next line |
+| **5** | **0** | **nothing in the game moves exactly five** |
+| 6 | 19 | |
+| 7–8 | 2 | a character WALKING OUT |
+| 9–10 | 23 | the aide's own nine-tile exit, `g3:08166445` |
+| 14 / 25 / 62–64 | 28 | |
+
+So `LEFT_TILES = 5`: a move of four tiles or fewer is a reposition and the
+portrait stays; six or more is a walk-off and the record ends. The threshold sits
+in a gap the data leaves empty, which is why it can be stated as a rule rather
+than tuned. It is also strictly *fewer* false positives than 1.0.3: every 1–4
+tile mid-conversation move in the game keeps its portrait.
+
+### Two: a new conversation inherited the last one's record
+
+`world.talk` set `pressSpeaker` but left `spokeObject`/`spokeCell` from the
+**previous** conversation. So the first box of a new conversation compared the
+speaker's current cell against where they stood in the *last* one — and when the
+script had moved them in between (the Net Center scene shifts Bill around), that
+first box was read as a departure and came out bare. Bill's own line is the
+reported shape: `g3:08170eb1` opens by turning him to face the player
+(`applymovement 2` → `0x4A` FACE_PLAYER), which is not a move at all, so what was
+left over from the previous conversation was the whole cause. Both press hooks
+(`world.talk`, `world.trainer_engaged`) now start from a clean record, so a fresh
+press is a fresh conversation.
+
+### Verification
+
+- **1004 checks, 0 failures** — load 23, menu 29, speaker **404** (up from 398),
+  geometry **507** (up from 506), launcher 41.
+- **In the LÖVE engine**: `.probe/love3/` (LÖVE 11.5, real `love.graphics`) is
+  **35 checks, 0 failures**. It drives the aide's scene with **no press**, steps
+  him two tiles (box 2 must keep its portrait) and then nine tiles (the letter
+  must be bare), and runs Bill's line after a move between conversations.
+  `"C:/Program Files/LOVE/lovec.exe" .probe/love3`
+- **Bite-proven in both**: removing the threshold fails 2 suite + 2 LÖVE checks
+  (the reposition cases); removing the fresh-press reset fails 1 + 1.
+- New checks: §19 in `dp3_speaker_test.lua` — the two reported lines resolve (the
+  aide's object, gfx 55 → picture 107; Bill's, gfx 73 → the Fame Checker's 313)
+  — and three more cases in `XF.departureTests` (a reposition keeps, a walk-off
+  ends, a fresh press starts clean).
+- Gates on the tree: `validate --strict` ok · `lint` ok · `gen3check --strict`
+  ok ("will load").
+
+### What this does NOT change
+
+Celio (1.0.3) and the female Psychic's graphic (1.0.2) are untouched. The
+`LEFT_TILES` threshold applies to every speaker, press or scene.
+
+## 1.0.3 — the portrait leaves when the speaker does
+
+Two reports, both about a portrait outliving the person it belongs to.
+
+The reports:
+
+> *"Oak's aide portrait incorrectly persists after the aide leaves. When the
+> aide finishes handling the letter and departs, and the player begins reading
+> the letter (triggered by 'there's a letter attached'), the aide's portrait is
+> still displayed."*
+>
+> *"In the Bill interaction on Island 1 with Celio, his portrait is missing from
+> some of his dialogue boxes."*
+
+### One: the departure test only ever looked at a press
+
+1.0.2 taught the mod to read the pressed object's own cell and drop the record
+when a script walked them out (`pressLeftTheScene`). That fixed the case where
+the player **pressed A** on Oak's aide — and missed the one the report is about.
+
+The aide's scene has **two entrances**. Pressing A on him raises `world.talk`.
+But he is also reached by **walking up to him**: the coord events at Pewter
+City (46,21)/(46,22)/(46,23) — `g3:081662b7` / `:081662c4` / `:081662d1` — run
+`lockall` and `call` the same script, and **never raise `world.talk`**. On that
+entrance there is no press to drop, so the portrait comes from the **scene
+route**: `sceneSpeaker` reads the running script's own `applymovement localId=7`
+row and names the aide.
+
+A departure test keyed on the press therefore could not fire there, and it did
+not: `sceneSpeaker` simply named the aide again on the letter box, because his
+`applymovement` row is still in the running script. Measured against the real
+decoded script (`g3:081662de` + its branches) with a press-less scene: **all four
+boxes, including the letter, resolved to the aide (picture 107)**.
+
+The fix generalises the record from "the pressed object" to **the object the box
+actually resolved to** — press *or* scene:
+
+- `spokeObject` / `spokeCell` record the speaker the last box used and where it
+  stood, whatever route produced it. `noteSpokeCell` keys on `speaker.object`,
+  so a box answered by the scene is recorded exactly like one answered by the
+  press.
+- `speakerLeftTheScene()` compares that object's cell at box time and, when it
+  has moved, drops the press **and** sets `sceneGone`.
+- `sceneSpeaker()` answers `nil` while `sceneGone` is set, because the actor's
+  own `applymovement` rows would otherwise name them again.
+- A fresh press (`world.talk`, `world.trainer_engaged`) or the end of the
+  conversation (`script.ended`, `map.entered`, a step with no script running)
+  clears it, so the suppression never outlives the conversation.
+
+The laziness is unchanged and still load-bearing: the cell is recorded at the
+**first** box the speaker answers for, so an actor that moves *before* its first
+line (Bill out of the teleporter, a line-of-sight trainer walking up) records
+where it moved to and is not mistaken for a departure.
+
+### Two: Celio had no portrait at all
+
+`OBJ_EVENT_GFX_CELIO` (89) was on the `false` list — the graphics the mod
+declines because the cart never drew a battle bust of the person wearing them.
+That reasoning is right for a graphic worn by anonymous townsfolk and wrong here,
+and the measurement says so: **graphic 89 is worn by exactly one object in the
+whole game**, Celio himself, on One Island's Net Center floor
+(`.probe/dp3_gfxwho.lua`: 1 object, 0 trainers). Declining it left a **named
+story character** with no face on any of his boxes — the reported "his portrait
+is missing". It is the same shape of mistake as the Balding Man's `false`, which
+1.9.4 removed, and it takes the same fix: one graphic, one person, one picture.
+
+The picture is **89**, the cart's own bust for that graphic (the Super Nerd's — a
+bespectacled figure in a lab coat, which is the visual the cart itself gives
+Celio: `src/core/game3/scripting/gfx_ids.lua:45` maps his graphic to
+`SPRITE_SUPER_NERD`). Graphic 89 and picture 89 being the same number is a
+coincidence of the two number spaces this mod exists to keep apart, not a
+copy-paste.
+
+That fixes the boxes that carry an object. The Net Center's Bill/Celio scene is a
+**coord event** (`lockall`, no `world.talk`) that moves Bill, Celio **and** the
+player, so `sceneSpeaker` answers nothing (more than one actor) and the text's
+own `"CELIO: "` is the only fact in play — a box with **no object at all**. So
+`NAME_ART` gains `CELIO = "SUPER NERD"`, resolved through the pack like every
+other name there. The two entries are both load-bearing and cover different
+boxes: removing the graphic entry fails the five lines that do not spell his name
+(they carry only his object), and removing the name entry fails the three scene
+boxes that carry no object.
+
+### Verification
+
+- **995 checks, 0 failures** — load 23, menu 29, speaker **398** (up from 370),
+  geometry **504** (up from 501), launcher 41.
+- **Verified in the LÖVE engine**, not only headlessly: `.probe/love3/` is a LÖVE
+  11.5 project that loads the engine's own `src.ui.game3.message` and the mod,
+  then paints through the **real** `love.graphics` — **32 checks, 0 failures**.
+  It drives the aide's scene with **no press at all** (so only the scene route
+  can answer) and asserts the portrait on boxes 1–3 and **none** on the letter
+  box; then the Net Center scene box for box (Bill → 313, Celio → 89); then
+  Celio's five unnamed lines, pressed on his object.
+  `"C:/Program Files/LOVE/lovec.exe" .probe/love3`
+- **All four fixes are bite-proven**, in the suites and in the LÖVE run:
+  | reverted | suite failures | LÖVE failures |
+  | --- | --- | --- |
+  | `sceneGone` suppression | 1 (geometry) | 1 |
+  | the generalised record | 1 (geometry) | — |
+  | `GFX_ART[89]` | 9 (speaker) | 10 |
+  | `NAME_ART.CELIO` | 5 (speaker) | 7 |
+- New tests: §18 in `dp3_speaker_test.lua` (the whole scene box for box, plus
+  Celio's five unnamed lines), `XF.sceneDepartureTests()` in
+  `dp3_geometry_test.lua` (a press-less scene whose actor walks out).
+- Gates on the tree: `validate --strict` ok · `lint` ok · `gen3check --strict
+  --notes` ok ("will load").
+
+## 1.0.2 — the portrait follows the conversation
+
+Three reports, one shared cause each, and each fixed where the behaviour is
+shared rather than at the character or scene that was named.
+
+The reports:
+
+> *"During an NPC interaction — for example Bill — some dialogue boxes lose the
+> portrait partway through the conversation."*
+>
+> *"Portraits are missing for some psychic sprites."*
+>
+> *"Some boxes show a stale or incorrect portrait from a previous interaction.
+> One example: after Oak's aide delivers the Running Shoes and a letter, reading
+> the letter can show the wrong portrait."*
+
+### One: a step inside a script is not the player ending the conversation
+
+FRLG walks the **player** around *inside* a script. `applymovement 0xFF` is how a
+cutscene turns the player to face the speaker, or walks them into a scene, and
+that goes through `Player.scriptStep` → `Player.finishStep` — the one place a real
+step emits `world.stepped` (`src/core/game3/player.lua:653`, reached only at
+`:799`). So the event fired **mid-conversation**, and the handler that ends the
+record on a step dropped the portrait for every box after it. Oak's aide is the
+worked example: his branch scripts at `g3:081663da` / `:081663e6` / `:081663fc`
+run `applymovement 0xFF` between his first box and the rest of his speech, which
+is the reported "some boxes lose the portrait partway through".
+
+The fix is the guard the Gen 2 port has carried since 1.3.3: **while a script is
+running, a step is the scene's, not the player's**, and the record stands. The
+script's own end (`script.ended`) still clears it, so nothing outlives the
+conversation, and a step taken with no script in flight is still the player's own
+and still ends it. The rule is now asked in one place — `scriptRunning()` — shared
+by the step handler, the press-record check below, and the scene route.
+
+### Two: the female psychic's graphic answered nobody
+
+`OBJ_EVENT_GFX_WOMAN_1` (graphics id 23) is the female **Psychic** graphic. The
+host names it `SPRITE_TEACHER` (`src/core/game3/scripting/gfx_ids.lua:14`) and
+`SPRITE_ART` has no `SPRITE_TEACHER` entry, so the sprite route declined and every
+one of the seventeen non-trainer women wearing it drew **nothing** — the reported
+"portraits are missing for some psychic sprites". The three trainers on it (LAURA,
+JACLYN, RODETTE) already resolved through the trainer route; the graphic **itself**
+is what answered nobody. This is the same hole `WOMAN_2` (28) had one release on,
+and it takes the same fix: `GFX_ART[23] = 138`, picture 138 being the cart's
+female Psychic bust. It agrees with the map route's own generated answer — every
+map that puts a psychic on graphic 23 (`art/map_art.lua`) says `[23] = 138` — so
+it is that same rule for the maps that put none. Measured over the whole game by
+`.probe/dp3_psychic.lua`: graphic 23 is worn by 3 trainers, all PSYCHIC, and by 17
+non-trainer objects — every one of which this entry is what gives a face.
+
+### Three: the press record ends when the script walks the speaker out
+
+The record names the object standing in front of the player, and it is that
+object's only while the script leaves them there. FRLG walks a character **out of
+a scene** after their lines and then shows a box that is not theirs — Oak's aide
+hands over the Running Shoes, walks nine tiles to the left, and the letter from
+Mom that follows was wearing his face — and the engine raises nothing for it:
+only the *player's* own step emits `world.stepped`, and a script moving an
+**object** is silent.
+
+So the fact is read rather than waited for. The engine keeps every object's cell
+on the object (`src/core/game3/objects.lua:155`) and updates it when a step
+completes (`:551`), so "has this object moved since it last spoke?" is answerable
+at box time. The cell is recorded **lazily** — at the first box the press answers
+for — and that laziness is the whole of the "has spoken" test: a script that moves
+the object *before* its first line (Bill stepping into the teleporter, a
+line-of-sight trainer walking up to the player) records the cell it moved **to**
+and is not mistaken for a departure. Only a move **between two boxes** ends the
+record.
+
+### Verification
+
+- **964 checks, 0 failures** — load 23, menu 29, speaker **370** (up from 356),
+  geometry **501** (up from 496), launcher 41.
+- All three fixes are **bite-proven**: reverting each one makes exactly the new
+  assertions fail and nothing else — removing `GFX_ART[23]` fails 3 checks, making
+  the step handler unconditional fails 1, disabling the departure check fails 2.
+- The step guard, driven through the real event bus: a step while a script runs
+  keeps the speaker; the script's own end still ends it; with no script running a
+  step still ends it.
+- The female psychic's graphic, resolved with the sprite **and** the class route
+  both made unable to answer, so only the new `GFX_ART` entry can produce the
+  result; the map route's generated answer is asserted to agree; and LAURA's own
+  script key is asserted to still resolve through her trainer id.
+- The departure lifecycle, driven through the **real** `Message.show`: the pressed
+  object's first box wears its portrait; a box after the object walks off is bare;
+  an object that moved *before* its first line keeps its portrait; the next box
+  keeps it while the object stays put; and a move between boxes ends the record
+  again.
+
+## 1.0.1 — the NPC starts the conversation
+
+The report:
+
+> *"In some interactions a portrait appears when the player starts the
+> interaction, but does not appear when the NPC starts it. Make sure portraits
+> show whoever initiates. Also make sure Bill, Daisy and Mr. Fuji each have a
+> portrait when interacted with, including NPC-initiated interactions where
+> applicable."*
+
+Two holes, both about a box that arrives without an A press behind it.
+
+### One: an NPC-started scene named nobody
+
+`world.talk` names the object of an A press, and `world.trainer_engaged` names a
+line-of-sight trainer. A scene the world starts by itself — a coord event, an
+`ON_FRAME` map script, a cutscene that walks somebody over — raises neither, so
+`pressSpeaker` stayed nil and the box came out bare even though the very same
+line, reached by pressing A on the object, had a face.
+
+The actor is still a fact in the data: an FRLG scene **moves and turns** the
+object it is about, and the engine decodes a script into a table of command rows.
+`sceneSpeaker` collects every `applymovement` / `turnobject` / `addobject` /
+`removeobject` / `setobjectxy(perm)` row in the running script — the current list,
+every caller on the call stack (a box is often opened by a called `std:` stub),
+and the entry point — resolves each id to a live object, and answers only when
+exactly **one** object is named. A scene that touches several objects, or none,
+answers nothing, which is this mod's rule everywhere the data does not decide.
+The text's own `"NAME: "` prefix still outranks it (`artFor` asks the name
+first), so a script that hands off between two characters box by box stays right.
+
+### Two: the three characters the cart drew outside its battle art
+
+Bill, Daisy and Mr. Fuji have no trainer class, no species and (for Bill and
+Fuji) no row in the trainer pack, so the class, sprite and name routes all came
+up empty — Daisy even wore the pack's **Painter** DAISY (id 526, picture 147),
+a different person entirely. The cart *does* draw all three: FireRed's **Fame
+Checker** carries a 64x64 portrait for Oak, Daisy, Bill and Mr. Fuji, extracted
+to the same generated cache as the rest of the ROM art and loaded by the
+engine's own `src/ui/game3/fame_checker.lua`.
+
+The mod now asks that module for the portrait, named by the text (`BILL`,
+`DAISY`, `MR. FUJI`/`FUJI`) and pinned to the Fame Checker's own person index
+(Bill 13, Daisy 1, Mr. Fuji 14). Bill and Daisy also have an **exact graphics id
+of their own** (73 and 76) which is asked next, so a box that does not name them
+still resolves; Mr. Fuji has none, because he wears the shared OLD_MAN graphic
+and a graphics key would put his face on every old man — his dialogue names him,
+and the name route answers. It runs **after** `CustomArt/` and **before** the
+pack-name route, so a player's own file still wins and the pack's Painter DAISY
+never does. Oak is deliberately left on his Pokémon Professor class pic —
+he already had a portrait, and this release changes only what was broken. Like
+every other portrait, it is cut out of the player's own extracted ROM art; the
+mod still ships none. Three crop windows (`art/crops.lua`, synthetic picture ids
+301/313/314) sit on the head, because a Fame Checker portrait is a head filling
+the top of the square and the trainer default begins below the face.
+
+### Verification
+
+- **945 checks, 0 failures** — load 23, menu 29, speaker **356** (up from 327),
+  geometry 496, launcher 41.
+- The Fame Checker route, driven through the **real** engine UI module with the
+  generated cache staged: `artFor({name="BILL"})` → picture 313, 64x64 image;
+  `DAISY` → 301; `MR. FUJI` → 314.
+- The scene route, over a stubbed engine: one moved object names it; the text's
+  own name still outranks it; two objects answer nobody; no running script
+  answers nobody.
+
 ## 1.0.0 — the first release of this repository
 
 The same mod as `dialouge-portraits-gen3` 1.9.5, published under a new id from a

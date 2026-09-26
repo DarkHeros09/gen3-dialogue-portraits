@@ -661,13 +661,20 @@ table:
 | a **string** | a name, resolved through the pack exactly as `SPRITE_ART`'s values are — a trainer's own name first, a class name second | `[74] = "LANCE"` |
 | **`false`** | the cart never drew this person a battle bust | `[27] = false` — the Fat Man |
 
-The `false` entries are six graphics that were wearing somebody else's face: the
+The `false` entries are graphics that were wearing somebody else's face: the
 Fat Man the Fisherman's (`:18` sends him to `SPRITE_FISHER`), a female Worker the
-Scientist's (`:29` → `SPRITE_SCIENTIST`), Celio the Super Nerd's
-(`:45` → `SPRITE_SUPER_NERD`), the Man the PokéFan's (`:25` → `SPRITE_POKEFAN_M`,
-whose picture is a boy), and — added in 1.9.4 — **Daisy Oak** (`:76`, who was
-wearing a Five Island Painter's face through the name route; see *A name in a box
-is not a person*).
+Scientist's (`:29` → `SPRITE_SCIENTIST`), the Man the PokéFan's (`:25` →
+`SPRITE_POKEFAN_M`, whose picture is a boy), and — added in 1.9.4 — **Daisy
+Oak** (`:76`, who was wearing a Five Island Painter's face through the name
+route; see *A name in a box is not a person*).
+
+Celio (`:89` → `SPRITE_SUPER_NERD`) was on that list too, and **1.0.3 removed
+him**, for the same reason 1.9.4 removed the Balding Man: the reasoning was
+right for a graphic worn by anonymous townsfolk and wrong for one worn by a
+named person the cart drew. `OBJ_EVENT_GFX_CELIO` is worn by exactly **one**
+object in the whole game — Celio, on One Island's Net Center floor — and the
+cart's own bust for that graphic is picture 89. Declining it left a named story
+character with no face on any of his boxes; see *Celio* below.
 
 The Balding Man was on that list too, from 1.9.1, on the reasoning that he shares
 `SPRITE_POKEFAN_M` with the Man. **That reasoning was wrong**, and 1.9.4 is where
@@ -722,6 +729,24 @@ the graphic wore a Lass's face — picture 84, orange hair — which is the repo
 127 is the Twins, and the crop table cuts it down to one girl (see *Two people in
 one picture*), which is what both halves of that pair want and what the 18
 ordinary girls on the graphic want too.
+
+### Celio
+
+`OBJ_EVENT_GFX_CELIO` (89) is the **one graphic in the game worn by exactly one
+object** — Celio, on One Island's Net Center floor (`.probe/dp3_gfxwho.lua`:
+1 object, 0 trainers). He has no trainer class and no row in the pack, so the
+class and name routes cannot answer for him; the cart's own bust for his graphic
+is picture 89, the Super Nerd's, and that is what he now gets.
+
+The Net Center's Bill/Celio scene is a **coord event** — `lockall`, no
+`world.talk` — and it moves Bill, Celio **and** the player. Every one of its boxes
+carries the speaker's own `"BILL: "` / `"CELIO: "` prefix, and a name in the text
+outranks the object, so the scene resolves on the name: Bill by the Fame Checker
+(picture 313), Celio by `NAME_ART`'s `CELIO = "SUPER NERD"`. The two entries cover
+different boxes: the graphic answers the lines that carry his object (his own
+dialogue hands off to five lines with no name prefix), and the name answers the
+scene's three, which carry no
+object at all.
 
 ### Where the graphic is standing
 
@@ -935,6 +960,61 @@ people can share both.
 
 ---
 
+## When the portrait goes away
+
+A portrait is drawn for a box only while the engine itself agrees that somebody
+is speaking, and while the mod still believes that person is in the scene.
+
+**The text colour is black or grey.** FRLG draws a speaking NPC's text in a
+colour taken from the person the script selected — dark blue for a male, dark red
+for a female — and the plain **black/grey** colour for everything else:
+narration, signs, item and letter boxes, and any box whose speaker the engine
+could not identify. The engine hands that answer to the box in `opts.npcColor`
+(`adapters.lua:417/452` → `Hud.openMessage` → `message.lua:113`, where anything
+that is not MALE or FEMALE becomes `COLOR.NORMAL`), and the mod declines the
+portrait when it is NEUTRAL. Oak's aide's letter from Mom is the worked example:
+`g3:081662de` sets `textcolor 3` before it, so it is drawn in the black/grey
+colour and is bare on that ground alone.
+
+**The speaker walks out.** FRLG moves characters constantly, and the engine
+raises nothing for it — only the *player's* own step emits `world.stepped`, and a
+script moving an **object** is silent. So the mod reads the object's own cell
+(`src/core/game3/objects.lua:155`, updated when a step completes) and ends the
+record when the script has moved the speaker **five or more tiles** since the
+last box they spoke on.
+
+Five is measured, not chosen. Sweeping every script in the game for an NPC moved
+between two of its own boxes (`.probe/dp3_midmove.lua`) gives 858 moves and two
+clean groups — **1–4 tiles** (781 of them: a character *placed* for the next
+line, like Pewter's aide stepping down to face the player) and **6+ tiles** (77:
+a character *walking out*). Nothing in the game moves exactly five. A reposition
+keeps the portrait; a walk-off ends it, and the record is re-baselined at every
+box the speaker answers for, so a scene that shifts somebody twice is fine.
+
+The cell is recorded **lazily** — at the first box the speaker answers for — and
+that laziness is the whole "has spoken" test: a character moved *before* their
+first line (Bill stepping out of the teleporter, a line-of-sight trainer walking
+up) records where they moved **to** and is not mistaken for a departure.
+
+**The conversation ends.** `script.ended` (with `completed ~= false`), a warp, or
+a step taken with no script running all drop the record. A step taken *while a
+script is running* does not: FRLG walks the **player** around inside a script
+(`applymovement 0xFF`), which goes through `Player.finishStep` — the same place a
+real step emits `world.stepped` — so the record has to survive it.
+
+**A new press starts over.** `world.talk` and `world.trainer_engaged` clear the
+record before recording the new object, so the first box of a conversation is
+never compared against where the speaker stood in the *previous* one.
+
+It covers both ways a box finds its speaker. The press record is the obvious one;
+the other is the **scene** route, for a scene the NPC starts — a coord event or a
+cutscene that walks somebody over — which raises no `world.talk` at all. Pewter's
+aide has both entrances, and a departure test keyed on the press alone could
+never fire on the coord one, where the portrait comes from the running script's
+own `applymovement` rows.
+
+---
+
 ## Portrait art status
 
 `art/crops.lua` holds **one framing rule for everybody** plus the
@@ -1100,6 +1180,28 @@ extracted verbatim from the cart, not added by a mod. A name found in the text
 beats the press lookup below it, because a single running script hands ONE
 object to its whole run while the dialogue inside that run can hand off between
 two characters box by box.
+
+#### A scene that hands off between several people
+
+A script can also stage its own speaker: an FRLG scene **moves and turns** the
+object it is about immediately before that object's line — Three Island's
+bikers-and-locals scene (`g3:081679b5`) moves a local, shows his line, moves the
+biker boss, shows his, and so on for five boxes. The actor of a box is therefore
+**the object the script moved or turned most recently before it**, not "the only
+object the script touches": a scene that alternates has several, and the old
+"one actor or nobody" rule answered nobody for the whole scene.
+
+The scan starts at the command being executed (a box is often opened by a called
+`std:` stub, which has no actor rows of its own) and walks the callers outward
+from their own call sites, so the actor is found in whichever list staged it. A
+row whose id is not a live object — the player (`0xFF`), a variable alias such as
+`VAR_LAST_TALKED` — is not an actor.
+
+**The staged actor outranks the press record.** One pressed script can hand its
+boxes to several people (Three Island's `g3:0816786f` alternates local, biker,
+local, biker), so the pressed object is right for at most one of them. When the
+script stages nobody — the ordinary `lock` / `faceplayer` / box press — the press
+is the speaker, which is every other conversation in the game.
 
 #### What counts as a name
 
@@ -1517,7 +1619,7 @@ Without those two, "the group is present" would be satisfied by an engine that
 always had one. Verified to bite: making `modLoaded` always answer false turns it
 into 10 failures, every one of them a row or group assertion.
 
-**`dp3_speaker_test.lua` — 327 checks.** Who is talking and which picture is
+**`dp3_speaker_test.lua` — 409 checks.** Who is talking and which picture is
 theirs: the text's own name, the press's object, a class being **exchanged** for
 its picture rather than used as one, a name resolving to a picture exactly, an
 ambiguous name declining, an ordinary townsfolk sprite resolving through its
@@ -1637,7 +1739,7 @@ answer resolves to that map's picture, the id still outranks it where the two
 disagree, a species is never asked about the map, and the reported three classes
 resolve to 89 / 102 / 144 on their own maps.
 
-**`dp3_geometry_test.lua` — 496 checks.** The layouts, measured against the
+**`dp3_geometry_test.lua` — 515 checks.** The layouts, measured against the
 **real** engine modules. The trick that makes it measurable: the `FrlgFont.draw`
 spy is installed *before* the mod loads, so the mod captures the spy as *its*
 vanilla and the spy therefore sees the arguments the mod has already rewritten.
@@ -2069,7 +2171,7 @@ the readback route cannot come back without a test going red.
 Those four are about the mod at runtime — what portrait a speaker gets. The
 fifth is about the other half of shipping a mod.
 
-**`launcher_update_test.lua` — 41 checks.** Whether the launcher will offer an
+**`launcher_update_test.lua` — 47 checks.** Whether the launcher will offer an
 update for this mod, and whether the archive it would download is the one this
 repo publishes. It builds a synthetic GitHub release shaped exactly like this
 repo's — same semver tag, same asset names, the same `.modpkg` beside the `.zip`,
@@ -2161,28 +2263,42 @@ whole of it is four requirements:
    is invisible to it.
 3. **A semver-like tag** — `v1.0.0` or `1.0.0`; a leading `v` is stripped.
 4. **A `.zip` asset named `<mod-id>-<version>.zip`** — here,
-   `gen3-dialogue-portraits-1.0.0.zip`. The lookup is exact-name first, then
+   `gen3-dialogue-portraits-1.1.0.zip`. The lookup is exact-name first, then
    `<mod-id>*.zip`, then any `.zip`, so the exact name is the one to use. **Only
    the `.zip` is consumed**; the `.modpkg` is for manual install and is not
    looked at. An update shows only when the release version is strictly newer
    than the installed one, so the version has to actually move.
 
+And one requirement that is about what the player *reads* rather than whether the
+update is offered: **the Release body is the changelog.** The launcher's "What's
+New?" renders `ModUpdate.cleanBody(release.body)` and **never reads a file in this
+repo**, so a release whose body is GitHub's generated commit notes tells the
+player nothing about the mod. The workflow therefore takes the `## <version>`
+section of `CHANGELOG.md` — through `tools/changelog_section.py`, one
+implementation, so CI and `tests/launcher_update_test.lua` cannot disagree about
+it — and passes it to `gh` as `--notes-file`, **failing the build if the section
+is missing** rather than publishing an empty body. The heading is kept on purpose:
+the launcher strips the leading `#` run itself, so the heading becomes the first
+line of the release preview. Markdown is stripped, not rendered, so the body
+should read as prose.
+
 **Cutting a release.** Nothing is built into the repo. The `.zip` is a build
 product: `.github/workflows/release.yml` builds it from the tagged tree and
 attaches it to the GitHub Release. So the whole procedure is bump the version,
-tag, push:
+write the section, tag, push:
 
 ```sh
 # 1. bump "version" in manifest.json
-git tag v1.0.1
-git push origin v1.0.1
+# 2. add a "## <version>" section to CHANGELOG.md (the release body)
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 The workflow reads the mod id and version out of the manifest, **refuses to run
 if the tag disagrees with them**, builds `gen3-dialogue-portraits-<version>.zip`
-and attaches it with `gh release create`. The tag and the asset name therefore
-cannot drift from the manifest they ship inside — which is the failure this whole
-section exists to prevent.
+and attaches it with `gh release create --notes-file`. The tag, the asset name
+and the published changelog therefore cannot drift from the manifest they ship
+inside — which is the failure this whole section exists to prevent.
 
 **Building one by hand** (to look at it before tagging) uses the same script the
 workflow uses, and the same rules:

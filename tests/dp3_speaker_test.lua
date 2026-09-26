@@ -378,6 +378,22 @@ package.loaded["src.core.game3.scripting.gfx_ids"] = {
   },
 }
 
+-- ------- the cart's own Fame Checker portraits, stubbed at the seam the mod
+-- asks (src/ui/game3/fame_checker.lua `portrait`).
+--
+-- The real module decodes a 64x64 RGBA out of the generated cache the engine
+-- extracted from the player's ROM; the double hands back the same shape a real
+-- LÖVE Image has (getDimensions) and records the person index it was asked for,
+-- so the suite can prove WHICH person each name asks for rather than only that
+-- something came out.  Bill is person 13, Daisy 1, Mr. Fuji 14.
+local fameAsked = {}
+package.loaded["src.ui.game3.fame_checker"] = {
+  portrait = function(person)
+    fameAsked[#fameAsked + 1] = person
+    return stubImage(64, 64)
+  end,
+}
+
 -- ------- the engine's session, stubbed at the seam the rival route asks
 --
 -- The rival's name is the one thing the cart cannot spell out: his dialogue is
@@ -1635,9 +1651,13 @@ local function oneSpriteManyPeople()
   eq(X.GFX_ART[76], false,
      "graphic 76 -- Daisy, the rival's sister -- likewise")
   eq(X.picForName("DAISY"), 147, "and the pack really does know a DAISY")
+  -- Daisy is the one name in this block that DOES have art, because the cart
+  -- drew her -- just not in its battle art.  She rides the Fame Checker route
+  -- (section 14), which is asked before this pack-name route precisely so the
+  -- Painter 147 above never wins.
   eq(X.artFor({ gfx = 76, sprite = "SPRITE_MOM",
-                name = "DAISY", fromText = true }), nil,
-     "but Daisy Oak is not the Painter, so she declines too")
+                name = "DAISY", fromText = true }).pic, 301,
+     "but Daisy Oak is not the Painter: she gets the cart's Fame Checker art")
 
   -- The two the guard must NOT close, and the reason it is a guard and not a
   -- ban: here the speaker IS the trainer the text names.  Selphy's is the
@@ -1858,6 +1878,407 @@ local function mapRouteTests()
      "and the engine module is back exactly as the test found it")
 end
 mapRouteTests()
+
+-- ------- 14. THE CART'S OWN FAME CHECKER PORTRAITS
+--
+-- The reporter asks for three characters by name -- Bill, Daisy and Mr. Fuji --
+-- and says each must have a portrait, including when the NPC starts the
+-- interaction.  None of the three has a battle class, so the class and sprite
+-- routes cannot answer for them; the cart drew them in its FAME CHECKER
+-- instead, and that is where their art comes from.  The route must ask the
+-- Fame Checker for the right PERSON, and the synthetic picture ids must be the
+-- ones art/crops.lua files windows against.
+local function fameTests()
+  io.write("-- the cart's own Fame Checker portraits\n")
+
+  eq(X.FAME_PERSON.BILL, 13, "Bill is Fame Checker person 13")
+  eq(X.FAME_PERSON.DAISY, 1, "Daisy is person 1")
+  eq(X.FAME_PERSON.MRFUJI, 14, "Mr. Fuji is person 14")
+
+  fameAsked = {}
+  local bill = X.artFor({ name = "BILL", fromText = true })
+  ok(bill ~= nil, "Bill gets a portrait")
+  eq(bill and bill.pic, 313, "cut from the synthetic Bill picture key")
+  eq(fameAsked[#fameAsked], 13, "asked the Fame Checker for person 13")
+
+  -- Daisy is the case that matters most: the pack has a DAISY (a Painter) and
+  -- the Fame Checker route is asked FIRST, so the wrong face never wins -- and
+  -- it answers even where her graphic used to decline (gfx 76).
+  fameAsked = {}
+  local daisy = X.artFor({ gfx = 76, sprite = "SPRITE_MOM",
+                           name = "DAISY", fromText = true })
+  ok(daisy ~= nil, "Daisy gets a portrait even where her graphic once declined")
+  eq(daisy and daisy.pic, 301, "from the synthetic Daisy key")
+  eq(fameAsked[#fameAsked], 1, "asked for person 1, not the pack's Painter DAISY")
+
+  fameAsked = {}
+  local fuji = X.artFor({ name = "MR. FUJI", fromText = true })
+  ok(fuji ~= nil, "Mr. Fuji gets a portrait")
+  eq(fuji and fuji.pic, 314, "from the synthetic Fuji key")
+  eq(fameAsked[#fameAsked], 14, "asked for person 14")
+
+  -- Bill and Daisy also have an EXACT graphics id of their own (73 and 76), so
+  -- a box that does not name them still gets their face.  Mr. Fuji has none:
+  -- he wears the shared OLD_MAN graphic, and an unnamed old man must keep the
+  -- cart's old-man picture rather than wear Mr. Fuji's face.
+  fameAsked = {}
+  local billGfx = X.artFor({ gfx = 73, sprite = "SPRITE_BILL" })
+  ok(billGfx ~= nil and billGfx.pic == 313, "Bill resolves by graphics id 73")
+  eq(fameAsked[#fameAsked], 13, "asking for person 13")
+  local daisyGfx = X.artFor({ gfx = 76, sprite = "SPRITE_MOM" })
+  ok(daisyGfx ~= nil and daisyGfx.pic == 301,
+     "Daisy resolves by graphics id 76 -- where she used to decline")
+  eq(fameAsked[#fameAsked], 1, "asking for person 1")
+  eq(X.artFor({ gfx = 32, sprite = "SPRITE_GRAMPS" }).pic, 97,
+     "an unnamed old man keeps the cart's old-man picture, not Fuji's")
+
+  -- The three crop windows are filed, and they sit ON the head (the Fame
+  -- Checker art starts at the top of the square, so y is 0, not the trainer
+  -- default's 3).
+  eq(X.rectFor("trainers", "301", { name = "DAISY" }).y, 0,
+     "Daisy's window is filed at the top of the art")
+  eq(X.rectFor("trainers", "313", { name = "BILL" }).size, 32,
+     "Bill's window is 32px, like every other portrait")
+  eq(X.rectFor("trainers", "314", { name = "MR. FUJI" }).size, 32,
+     "and so is Mr. Fuji's")
+
+  -- CustomArt/ is still the most specific key there is.
+  customFiles["CustomArt/BILL.png"] = true
+  fameAsked = {}
+  local own = X.artFor({ name = "BILL", fromText = true })
+  ok(own ~= nil and own.custom == true, "CustomArt/BILL.png beats the Fame Checker")
+  eq(#fameAsked, 0, "and the Fame Checker is not even asked")
+  customFiles["CustomArt/BILL.png"] = nil
+
+  -- A name the cart did NOT draw in the Fame Checker still declines: this
+  -- route adds three faces, it does not turn every name into one.
+  eq(X.artFor({ name = "MOM", fromText = true }), nil,
+     "a name the Fame Checker does not hold still declines")
+end
+fameTests()
+
+-- ------- 15. THE NPC-STARTED SCENE
+--
+-- The reported shape: a portrait appears when the PLAYER starts the
+-- interaction (world.talk names the object) but not when the NPC starts it.  An
+-- NPC-started scene -- a coord event, an ON_FRAME map script, a cutscene that
+-- walks somebody over -- raises no world.talk and no world.trainer_engaged, so
+-- pressSpeaker is nil and the box had nothing to answer with.  The actor is
+-- still in the data: the script moves and turns the object it is about, and the
+-- engine's decoded script is a table of rows.
+local function sceneTests()
+  io.write("-- an NPC starts the interaction\n")
+
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+  local hadObjects = package.loaded["src.core.game3.objects"]
+
+  local npc = { sprite = "SPRITE_FISHER", graphicsId = 57, def = {} }
+  local other = { sprite = "SPRITE_LASS", graphicsId = 22, def = {} }
+  package.loaded["src.core.game3.objects"] = {
+    find = function(id)
+      if id == 5 then return npc end
+      if id == 6 then return other end
+      return nil
+    end,
+  }
+  local space = {
+    vm = {
+      isRunning = function() return true end,
+      ctx = { pc = { listKey = "std:4", index = 1 },
+              stack = { { listKey = "scene" } } },
+      _scriptKey = "scene",
+      scripts = {
+        ["std:4"] = { { op = "message", ptr = 0 } },
+        scene = {
+          { op = "applymovement", localId = 5 },
+          { op = "applymovement", localId = 0xFF },  -- the player: not an object
+          { op = "callstd", std = 4 },
+        },
+      },
+    },
+  }
+  package.loaded["src.core.game3.scripting.space"] = space
+
+  X.forgetSpeaker()
+  local sp = X.speakerFor("Here, take this!")
+  ok(sp ~= nil, "a box the NPC started names its actor with no press behind it")
+  eq(sp and sp.sprite, "SPRITE_FISHER", "and it is the object the scene moves")
+  eq(sp and sp.gfx, 57, "with its graphics id carried through")
+
+  -- The name the text used still outranks the inferred actor, so a scene that
+  -- hands off between two characters box by box keeps both right.
+  local named = X.speakerFor("OAK: Watch out!")
+  eq(named and named.name, "OAK", "a named line still names itself, not the actor")
+
+  -- A scene that moves two people names the one it moved LAST.  The scene idiom
+  -- is "place the speaker, then show their line", and a scene that alternates
+  -- between two people -- Three Island's bikers and locals, g3:081679b5, moves a
+  -- local, box, the biker, box, five times over -- is exactly this shape.  The
+  -- old rule answered "nobody" whenever two objects were moved anywhere in the
+  -- script, which left that whole scene bare.
+  space.vm.scripts.scene = {
+    { op = "applymovement", localId = 5 },
+    { op = "turnobject", localId = 6 },
+  }
+  X.forgetSpeaker()
+  local crowd = X.speakerFor("A crowd scene")
+  ok(crowd ~= nil, "a scene that moves two people still names one")
+  eq(crowd and crowd.sprite, "SPRITE_LASS",
+     "and it is the one the script moved last")
+
+  -- ...and the one it moved FIRST is named when that is the last move before
+  -- the box -- recency, not "the only actor", is the rule.
+  space.vm.scripts.scene = {
+    { op = "applymovement", localId = 6 },
+    { op = "turnobject", localId = 5 },
+  }
+  X.forgetSpeaker()
+  local first = X.speakerFor("Another crowd scene")
+  eq(first and first.sprite, "SPRITE_FISHER",
+     "a different last move names a different speaker")
+
+  -- ...and the script's actor outranks the PRESS record, because one pressed
+  -- script can hand its boxes to several people.  Three Island's biker/local
+  -- dialogue (g3:0816786f) alternates four speakers inside one press, so the
+  -- pressed object is right for at most one of its boxes.
+  space.vm.scripts.scene = { { op = "applymovement", localId = 5 } }
+  space.vm.ctx = { pc = { listKey = "std:4", index = 1 },
+                   stack = { { listKey = "scene", index = 1 } } }
+  Runtime.call("world.talk", function() end, {}, other)
+  local staged = X.speakerFor("A line nobody named")
+  ok(staged ~= nil, "a pressed script that stages somebody still names them")
+  eq(staged and staged.sprite, "SPRITE_FISHER",
+     "and it is the object the script staged, not the pressed one")
+
+  -- With no actor row before the box the press is the speaker, as always -- the
+  -- ordinary `lock`/`faceplayer`/box conversation.
+  space.vm.scripts.scene = { { op = "callstd", std = 4 } }
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, other)
+  local plain = X.speakerFor("A plain pressed line")
+  eq(plain and plain.sprite, "SPRITE_LASS",
+     "a press with nothing staged for the box is still the speaker")
+
+  -- Nothing running: no actor, and no stale one either.
+  space.vm.isRunning = function() return false end
+  X.forgetSpeaker()
+  eq(X.speakerFor("Nothing running"), nil,
+     "with no script running there is no actor")
+
+  -- Put the engine back.
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+  package.loaded["src.core.game3.objects"] = hadObjects
+end
+sceneTests()
+
+-- ------- 16. a step inside a script is not the player ending the conversation
+--
+-- The reported "some dialogue boxes lose the portrait partway through".  FRLG
+-- walks the PLAYER around inside a script -- `applymovement 0xFF` is how a
+-- cutscene turns the player to face the speaker, or walks them into a scene --
+-- and that goes through Player.scriptStep -> Player.finishStep, the one place a
+-- real step emits world.stepped (src/core/game3/player.lua:653, reached only at
+-- :799).  So the event fires MID-conversation, and the old unconditional clear
+-- dropped the portrait for every box after it.  Oak's aide is the worked
+-- example: his branch scripts at g3:081663da / :081663e6 / :081663fc run
+-- `applymovement 0xFF` between his first box and the rest of his speech.
+--
+-- The guard is the one the Gen 2 port has carried since 1.3.3: while a script
+-- is in flight the step is the SCENE's, and the record stands until the script
+-- itself ends.  Section 10 above still holds the other half -- with no script
+-- running, a step is the player's own and ends the conversation -- so the two
+-- together pin the rule rather than either half of it.
+local function stepGuardTests()
+  io.write("-- a script's own step does not end the conversation\n")
+
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+  local running = true
+  package.loaded["src.core.game3.scripting.space"] = {
+    vm = { isRunning = function() return running end, ctx = {}, scripts = {} },
+  }
+
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, PIKACHU_EO)
+  ok(X.speakerFor("Pika pika!") ~= nil, "a press is on record")
+
+  -- The step the scene takes: the player is walked by applymovement 0xFF.
+  Runtime.emit("world.stepped", {})
+  ok(X.speakerFor("Pika pika!") ~= nil,
+    "a step while the script runs keeps the speaker -- the box keeps its face")
+
+  -- The script's own end still ends it, so nothing outlives the conversation.
+  Runtime.emit("script.ended", { completed = true })
+  eq(X.speakerFor("Pika pika!"), nil, "and the script's end still ends it")
+
+  -- With no script in flight, a step is the player's own and ends it, exactly
+  -- as section 10 says -- so the guard is not a blanket "never clear".
+  running = false
+  Runtime.call("world.talk", function() end, {}, PIKACHU_EO)
+  ok(X.speakerFor("Pika pika!") ~= nil, "a fresh press is on record")
+  Runtime.emit("world.stepped", {})
+  eq(X.speakerFor("Pika pika!"), nil, "with no script running, a step ends it")
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+end
+stepGuardTests()
+
+-- ------- 17. the female psychic's graphic answers
+--
+-- OBJ_EVENT_GFX_WOMAN_1 (23) is the female PSYCHIC graphic.  The host names it
+-- SPRITE_TEACHER (src/core/game3/scripting/gfx_ids.lua:14) and SPRITE_ART has
+-- no SPRITE_TEACHER entry, so the sprite route declined and every one of the
+-- fifteen non-trainer women wearing it drew nothing -- the reported "portraits
+-- are missing for some psychic sprites".  The three trainers on it (LAURA id
+-- 608, JACLYN id 517, RODETTE id 587) already resolved through the trainer
+-- route; the graphic ITSELF is what answered nobody.  Picture 138 is the cart's
+-- female PSYCHIC bust, and art/map_art.lua's own generated answer is [23] = 138
+-- on all three maps that put a psychic on it, so GFX_ART[23] = 138 is that same
+-- rule for the maps that put none.
+io.write("-- the female psychic's graphic answers\n")
+local psychic = X.artFor({ gfx = 23 })
+ok(psychic ~= nil, "a bare WOMAN_1 object now draws a portrait")
+eq(psychic and psychic.pic, 138, "and it is the female Psychic's own bust")
+
+-- The exact route that used to decline, made to bite: the host's sprite name
+-- for this graphic has no art, and the PSYCHIC class (75) has no row in this
+-- suite's pack, so NOTHING but the graphic route above can answer.  If the new
+-- GFX_ART entry were absent this would be nil, which is the shipped bug.
+local byGfx = X.artFor({ gfx = 23, sprite = "SPRITE_TEACHER", class = 75 })
+eq(byGfx and byGfx.pic, 138,
+  "it answers even though SPRITE_TEACHER has no art and class 75 has no pack row")
+
+-- The map route (step 4b) agrees: on the three maps that field a psychic on
+-- this graphic the generated table says the same 138.  This ties the new
+-- hand-written entry to art/map_art.lua rather than to a second guess.
+eq(X.artFor({ gfx = 23, mapId = "FR_SIX_ISLAND_GREEN_PATH" }).pic, 138,
+  "and the map route's own generated answer agrees")
+eq(X.MAP_ART["FR_FIVE_ISLAND_LOST_CAVE_ROOM4"][23], 138, "on Lost Cave too")
+eq(X.MAP_ART["FR_SEVEN_ISLAND_TRAINER_TOWER"][23], 138, "and on the Trainer Tower")
+
+-- The three trainers who wear it still resolve through their OWN ids (the
+-- trainer route, step 4, runs before the graphic route), so the new entry is a
+-- floor for the un-named object, not an override of a named person.
+eq(X.artFor({ gfx = 23, scriptKey = "g3:08164c11" }).pic, 138,
+  "LAURA, the real trainer on this graphic, still resolves by her own id")
+eq(X.scriptTrainerIds["g3:081ac517"], 517, "JACLYN's script names trainer 517")
+eq(X.scriptTrainerIds["g3:081ac88b"], 587, "and RODETTE's names 587")
+
+-- ------- 18. Celio, the one named character the decline left faceless
+--
+-- The reported "in the Bill interaction on One Island with Celio, his portrait
+-- is missing from some of his dialogue boxes".  OBJ_EVENT_GFX_CELIO (89) is
+-- worn by exactly ONE object in the whole game -- Celio, in the Net Center --
+-- and the mod DECLINED it (`[89] = false`), on the reasoning that the cart never
+-- drew a bust of him.  That left a named story character with no face on any of
+-- his boxes, which is the same shape as the Balding Man decline 1.9.4 removed.
+-- Measured by .probe/dp3_gfxwho.lua: 1 object, 0 trainers.
+--
+-- The scene is a coord event -- `lockall`, no world.talk -- and it moves Bill,
+-- Celio AND the player, so sceneSpeaker answers nothing (more than one actor)
+-- and the text's own "CELIO: " is the only fact in play.  That is why the fix
+-- is two entries: the GRAPHIC for the boxes that carry an object, and the NAME
+-- for the scene's boxes, which carry none.
+io.write("-- Celio, who had no face at all\n")
+
+-- The graphic route: one graphic, one person, one picture (the cart's own bust
+-- for graphic 89 -- picture 89, the Super Nerd's).  Every one of these is read
+-- through a local so a bite reports the whole family rather than dying on the
+-- first nil.
+local function picOf(d) local a = X.artFor(d) return a and a.pic or nil end
+eq(X.GFX_ART[89], 89, "graphic 89 now names a picture instead of declining")
+eq(picOf({ gfx = 89 }), 89, "a bare Celio object draws a portrait")
+eq(picOf({ gfx = 89, sprite = "SPRITE_SUPER_NERD" }), 89,
+  "and so does one carrying the host's sprite name for the graphic")
+eq(picOf({ gfx = 89, scriptKey = "g3:08170ec5" }), 89,
+  "and one carrying his own object script's key")
+
+-- The name route: the Net Center scene's boxes carry NO object at all.
+eq(X.NAME_ART["CELIO"], "SUPER NERD", "CELIO is filed in the text-name table")
+eq(picOf({ name = "CELIO", fromText = true,
+           mapId = "OneIsland_PokemonCenter_1F" }), 89,
+  "a name-only Celio box -- the coord-event scene -- now draws a portrait")
+
+-- The whole scene, box for box, as the cart spells it: four Bill lines and
+-- three Celio lines, alternating.  Bill is the regression guard -- he was
+-- already right, and this release must not disturb him.
+local SCENE = {
+  { "BILL: Oh, hey!!", 313 },
+  { "BILL: What kept you so long?Been out having a good time?We got it done.The PCs are up and running!", 313 },
+  { "CELIO: The job went incrediblyquick.BILL is one amazing guy…", 89 },
+  { "BILL: No, no! There was almostnothing left for me to do.CELIO, I have to hand it to you.You've learned a lot.", 313 },
+  { "CELIO: Oh, really?Ehehe…", 89 },
+  { "BILL: Well, there you have it.I'm finished with the job.We should head back to KANTO.CELIO, I'll be seeing you again.", 313 },
+  { "CELIO: , I'm really sorrythat we sent you off alone today.I promise, I will show you aroundthese islands sometime.", 89 },
+}
+for i, row in ipairs(SCENE) do
+  local d = X.speakerFor(row[1])
+  local a = d and X.artFor(d)
+  eq(a and a.pic, row[2], ("scene box %d (%s…) gets picture %d")
+    :format(i, row[1]:sub(1, 5), row[2]))
+end
+
+-- Celio's OWN dialogue has boxes that do NOT spell his name -- his object
+-- script hands off to lines with no "CELIO: " prefix -- and those are the
+-- "some of his dialogue boxes" of the report.  They carry his object (gfx 89)
+-- and nothing else, so the graphic route is what has to answer for them.
+-- Celio's own object, as a press hands it over: his graphic and his script key,
+-- no class and no trainer id -- he is not a trainer.
+local CELIO_EO = { def = { graphicsId = 89, scriptKey = "g3:08170ec5" },
+                   graphicsId = 89, scriptKey = "g3:08170ec5" }
+
+local CELIO_UNNAMED = {
+  "I'm sorry for taking up so much ofBILL's time.I'm also sorry for being such a poor host on your visit here.",
+  "I…I'm not crying.That's enough about me!, you're going to keeplooking for exotic POKéMON, right?I wish you the best of luck!",
+  "This is my own ferry PASS.It will let you get to all theSEVII ISLANDS., please, I can'tdo it without your help.",
+  "Oh!Th-that's…",
+  "I was trying to find the gemeven while I was studying.As a result, I've made no headwayin both my search and studies…If I relied on BILL, I'm sure myresearch would progress.But this time, I want to try to dothings by myself.",
+}
+for i, txt in ipairs(CELIO_UNNAMED) do
+  eq(X.nameFromText(txt), nil, ("unnamed Celio line %d really has no name prefix"):format(i))
+  -- Press his object, the way the engine does, so the box carries gfx 89 and
+  -- nothing else -- exactly the shape these lines arrive in.
+  Runtime.call("world.talk", function() end, {}, CELIO_EO)
+  local d = X.speakerFor(txt)
+  eq(d and d.gfx, 89, ("and it resolves Celio's object, gfx 89 (line %d)"):format(i))
+  local a = d and X.artFor(d)
+  eq(a and a.pic, 89, ("so it draws picture 89 (line %d)"):format(i))
+end
+
+-- ------- 19. the two lines the report names
+--
+-- Both are lines whose box carries NO name, so both depend on the object route
+-- -- and both were reported as showing no portrait.  The lifecycle half (a
+-- short move between boxes must not end the record; a fresh press must start a
+-- fresh conversation) is `XF.departureTests` in the geometry suite; this is the
+-- resolution half, so the assignment is pinned next to the behaviour.
+io.write("-- the lines the report names\n")
+
+-- Oak's aide: "I'm glad I caught up to you." -- his object is gfx 55.
+-- Pin the map, because the map route (step 4b) outranks the graphic and Route 8
+-- really does put a Super Nerd on gfx 55 ([55] = 89 there).  Pewter City has no
+-- such trainer, which is why the aide resolves through GFX_ART[55] = 107.
+Runtime.emit("map.entered", { mapId = "FR_PEWTER_CITY" })
+local AIDE_EO = { def = { graphicsId = 55, localId = 7 },
+                  graphicsId = 55, localId = 7, sprite = "SPRITE_SCIENTIST" }
+Runtime.call("world.talk", function() end, {}, AIDE_EO)
+local aideLine = X.speakerFor(
+  "I'm glad I caught up to you.I'm PROF. OAK's AIDE.I've been asked to deliver this,so here you go.")
+eq(aideLine and aideLine.gfx, 55, "the aide's line resolves his own object")
+eq(aideLine and aideLine.name, nil, "and names nobody in the text")
+eq(X.artFor(aideLine) and X.artFor(aideLine).pic, 107,
+  "so it draws the Scientist's picture (gfx 55 -> 107)")
+
+-- Bill: "ASH, this is my buddy CELIO." / "…wait for me just a bit?" is the Net
+-- Center box that shows Celio off (g3:08170eb1) -- Bill's object is gfx 73.
+local BILL_EO = { def = { graphicsId = 73, localId = 2 },
+                  graphicsId = 73, localId = 2, sprite = "SPRITE_BILL" }
+Runtime.call("world.talk", function() end, {}, BILL_EO)
+local billLine = X.speakerFor(
+  "Oh, hey, !Did you see?We got the PC working!I've got a few things to showCELIO here.Can you go out on a stroll orsomething for a while more?")
+eq(billLine and billLine.gfx, 73, "Bill's line resolves his own object")
+eq(billLine and billLine.name, nil, "and names nobody in the text")
+eq(X.artFor(billLine) and X.artFor(billLine).pic, 313,
+  "so it draws his Fame Checker portrait (gfx 73 -> person 13)")
 
 io.write(("\n%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

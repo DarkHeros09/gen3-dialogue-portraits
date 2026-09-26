@@ -12,9 +12,12 @@ name: Release
 # To cut a release:
 #
 #   1. bump "version" in manifest.json
-#   2. git tag v1.0.1 && git push origin v1.0.1
+#   2. add a "## <version>" section to CHANGELOG.md -- that section becomes the
+#      Release body, which is what the launcher's "What's New?" displays
+#   3. git tag v1.1.0 && git push origin v1.1.0
 #
-# The tag and the manifest have to agree; the build fails if they do not.
+# The tag, the manifest and the changelog section have to agree; the build fails
+# if they do not.
 
 on:
   push:
@@ -87,13 +90,26 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.ver.outputs.tag }}"
+          VERSION="${{ steps.ver.outputs.version }}"
           OUT="$RUNNER_TEMP/${{ steps.ver.outputs.zip }}"
+          # The launcher's "What's New?" renders the RELEASE BODY and never reads
+          # a file in this repo (src/mods/ModUpdate.lua, `cleanBody`), so the
+          # changelog reaches the player only if it IS the body.  Take the
+          # "## <version>" section of CHANGELOG.md -- one implementation, in
+          # tools/changelog_section.py -- and fail if it is missing, rather than
+          # shipping generated commit notes that say nothing about the mod.
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          python3 tools/changelog_section.py "$VERSION" CHANGELOG.md > "$NOTES"
+          test -s "$NOTES"
+          echo "--- release body (first lines) ---"
+          head -3 "$NOTES"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$OUT" --clobber
+            gh release edit "$TAG" --notes-file "$NOTES"
           else
             gh release create "$TAG" "$OUT" \
               --title "$TAG" \
-              --generate-notes
+              --notes-file "$NOTES"
           fi
           echo "Assets now on $TAG:"
           gh release view "$TAG" --json assets --jq '.assets[].name'

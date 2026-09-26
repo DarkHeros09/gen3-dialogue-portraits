@@ -243,6 +243,26 @@ return {
   -- Per-picture overrides, keyed by the FRLG trainer front-pic id.  Every one
   -- of these is a picture the default window leaves floating above its subject.
   trainers = {
+    -- ------- the Fame Checker's own three portraits (main.lua's FAME_PIC)
+    --
+    -- The cart keeps a 64x64 portrait for Oak, Daisy, Bill and Mr. Fuji in its
+    -- Fame Checker, and this mod now draws the three who have no battle art of
+    -- their own (Oak keeps his class picture).  They are NOT the trainer busts
+    -- the default rule was written for: a Fame Checker portrait is a HEAD
+    -- filling the top of the square -- the opaque art starts at row 1 or 2 and
+    -- the face occupies roughly rows 2-25 -- so the trainer default {16, 3, 32}
+    -- begins below the face and frames the chest.  Each window below sits on
+    -- the head, measured from the four .rgba files dumped by
+    -- .probe/dp3_fame_dump.lua: the head's x range and centre are in each
+    -- comment, and y 0 is the top of the art.
+    --
+    -- The keys are SYNTHETIC picture ids in no relationship to a front-pic id
+    -- (301, 313, 314) because the source is not a front pic at all; main.lua's
+    -- FAME_PIC is the only thing that produces them.
+    ["301"] = { 16, 0, 32 },  -- DAISY    -- head x 23-42, centre 32
+    ["313"] = { 18, 0, 32 },  -- BILL     -- head x 25-44, centre 34
+    ["314"] = { 18, 0, 32 },  -- MR. FUJI -- head x 21-47, centre 34
+
     -- PICTURE 82 -- the YOUNGSTER of class 57, and the SITTING BOY of graphics
     -- id 21.  bbox (16,15)-(49,62), 34% artwork at the default with twelve
     -- empty rows above the head, which starts at row 15.  The head's centre is

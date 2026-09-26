@@ -1,10 +1,15 @@
 # Custom art
 
 This folder is how you give a portrait to anyone the mod doesn't already cover —
-Mom, a nurse, the shop clerk, Daisy, an old man in the street, any story
-character with no battle art of their own. A PNG dropped here beats every route
-the mod has, in every `PORTRAIT` layout (INSET / FRAMED / MARGIN), and is drawn
-exactly as supplied, uncropped.
+Mom, a nurse, the shop clerk, an old man in the street, any story character with
+no battle art of their own. A PNG dropped here beats every route the mod has, in
+every `PORTRAIT` layout (INSET / FRAMED / MARGIN), and is drawn exactly as
+supplied, uncropped.
+
+One note since 1.0.1: **Bill, Daisy and Mr. Fuji are already covered** — the
+cart drew them in its Fame Checker, and the mod now serves those portraits. A
+`CustomArt/BILL.png`, `CustomArt/DAISY.png` or `CustomArt/MR. FUJI.png` still
+wins over them if you would rather use your own art.
 
 **This folder ships no art.** The mod has no pictures in it at all: every
 portrait is cut, at runtime, out of the battle art the engine extracted from
@@ -210,12 +215,12 @@ None of them has a portrait unless you add one here.
 
 | Sprite | Draw this file | Seen on |
 | --- | --- | --- |
-| `SPRITE_BILL` | `CustomArt/SPRITE_BILL.png` (or `BILL.png`) | Bill's cottage, Cerulean Cape |
+| `SPRITE_BILL` | `CustomArt/SPRITE_BILL.png` (or `BILL.png`) — **already covered** by the Fame Checker art | Bill's cottage, Cerulean Cape |
 | `SPRITE_CLERK` | `CustomArt/SPRITE_CLERK.png` | every Poké Mart counter |
 | `SPRITE_GRAMPS` | `CustomArt/SPRITE_GRAMPS.png` | old men, everywhere |
 | `SPRITE_GRANNY` | `CustomArt/SPRITE_GRANNY.png` | old women, everywhere |
 | `SPRITE_LINK_RECEPTIONIST` | `CustomArt/SPRITE_LINK_RECEPTIONIST.png` | every Pokémon Center |
-| `SPRITE_MOM` | `CustomArt/SPRITE_MOM.png` (or `MOM.png`) | Mom, Daisy, and the player's PC — **all three**, see the catch above |
+| `SPRITE_MOM` | `CustomArt/SPRITE_MOM.png` (or `MOM.png`) | Mom and the player's PC. **Daisy is already covered** by the Fame Checker art, so this file no longer has to land on her too |
 | `SPRITE_NURSE` | `CustomArt/SPRITE_NURSE.png` | every Pokémon Center |
 | `SPRITE_OAK` | `CustomArt/SPRITE_OAK.png` (or `OAK.png`) — **already covered** by his class pic | Professor Oak, in his lab |
 | `SPRITE_OFFICER` | `CustomArt/SPRITE_OFFICER.png` | the Mystery Gift deliveryman |

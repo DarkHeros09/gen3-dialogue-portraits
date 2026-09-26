@@ -2701,5 +2701,335 @@ function XF.pairCropTests()
 end
 XF.pairCropTests()
 
+-- ------- 16. the press record ends when the script walks the speaker out
+--
+-- The reported shape: Oak's aide hands the player the Running Shoes, walks nine
+-- tiles to the left, and the letter from Mom that follows wears his face.  Only
+-- the PLAYER's own step emits world.stepped (src/core/game3/player.lua:653), so
+-- the engine raises nothing when a SCRIPT walks an OBJECT off -- the fact has to
+-- be read, and the mod reads it off the object's own cell at box time (see
+-- pressLeftTheScene in main.lua).  This section drives the real Message.show so
+-- the reading, the recording and the drop are all exercised through the seam
+-- the game uses, not through a private helper.
+--
+-- In a function of its own for the same reason the rest of the file's helpers
+-- are: this chunk is one Lua function and LuaJIT caps it at 200 locals.
+function XF.departureTests()
+  io.write("-- the speaker walks out of the scene\n")
+
+  -- A local predicate rather than the file's `painted`: that name is shadowed
+  -- further up (line 1513 rebinds `painted` to a draw record), so the earlier
+  -- function is not reachable from here.  Reads the current `draws` spy.
+  local function paintsNow(image)
+    for _, d in ipairs(draws) do if d.a == image then return true end end
+    return false
+  end
+
+  local hadObjects = package.loaded["src.core.game3.objects"]
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+
+  -- The object the press found, standing at (5,5).  It carries a localId and a
+  -- live cell, which is what the engine keeps on every object
+  -- (src/core/game3/objects.lua:153/155) and what the mod compares against.
+  local pressObj = { trainerType = 17, sprite = "SPRITE_HIKER",
+                     localId = 7, cellX = 5, cellY = 5 }
+  package.loaded["src.core.game3.objects"] = {
+    find = function(lid)
+      if tonumber(lid) == 7 then return pressObj end
+      return nil
+    end,
+  }
+  -- A script is in flight: that is what arms the comparison, and an empty
+  -- script also keeps sceneSpeaker from answering with an actor of its own, so
+  -- a bare box here can only mean the PRESS record was dropped.
+  package.loaded["src.core.game3.scripting.space"] = {
+    vm = { isRunning = function() return true end, ctx = {}, scripts = {} },
+  }
+
+  style, side = "inset", "left"
+
+  -- (a) the pressed object's first box wears its portrait, and the box records
+  -- where the object is standing.
+  draws = {}
+  openBox(pressObj, nil, "Here, take these Running Shoes.")
+  Message.draw()
+  ok(paintsNow(wouldBe.image), "the pressed object's first box wears its portrait")
+
+  -- (b) the object is PLACED for the next line -- a short move between boxes.
+  -- It is still in the scene and still talking, so the portrait stays.  This is
+  -- the reported "Oak's aide: 'I'm glad I caught up to you.' has no portrait":
+  -- the aide steps down to stand in front of the player (g3:081663e6 /
+  -- :081663fc) between his first box and his second, and treating that one
+  -- step as a walk-off left every box after it bare.
+  pressObj.cellY = 7          -- two tiles: a reposition, not a departure
+  draws = {}
+  Message.show("I'm glad I caught up to you.")
+  Message.draw()
+  ok(paintsNow(wouldBe.image),
+    "a speaker moved a step or two between boxes keeps its portrait")
+
+  -- (c) the object WALKS OFF between boxes -- nine tiles, the aide's own exit
+  -- (g3:08166445) -- applymovement, so no world.stepped.  The next box is not
+  -- his, and the measurement behind LEFT_TILES says every walk-off in the game
+  -- is six tiles or more.
+  pressObj.cellX = -4
+  draws = {}
+  Message.show("There is a letter from Mom here.")
+  Message.draw()
+  ok(not paintsNow(wouldBe.image),
+    "a box after the object walked off is bare, not wearing his face")
+
+  -- (d) an object that moved BEFORE its first line keeps its portrait: the cell
+  -- is recorded lazily, at the first box the press answers for, so a move that
+  -- precedes it is not mistaken for a departure (Bill stepping out of the
+  -- teleporter, a line-of-sight trainer walking up to the player).
+  Runtime.call("world.talk", function() end, {}, pressObj)
+  pressObj.cellX, pressObj.cellY = 9, 9
+  draws = {}
+  Message.show("Bill steps out of the teleporter.")
+  Message.draw()
+  ok(paintsNow(wouldBe.image),
+    "an object that moved before its first line keeps its portrait")
+
+  -- (e) and it is kept for the NEXT box too, while it stays put -- so the
+  -- departure test cannot be satisfied by dropping every second box.
+  draws = {}
+  Message.show("More of the same conversation.")
+  Message.draw()
+  ok(paintsNow(wouldBe.image),
+    "and keeps it for the next box when the object stays put")
+
+  -- (f) only a WALK-OFF between two boxes ends the record.  Move it a long way
+  -- now and the next box is bare again -- the mirror of (d), so the laziness
+  -- cannot be a blanket amnesty that never ends a record at all.
+  pressObj.cellY = 3
+  draws = {}
+  Message.show("And now he is gone.")
+  Message.draw()
+  ok(not paintsNow(wouldBe.image), "a walk-off between boxes ends the record again")
+
+  -- (g) A NEW conversation starts clean.  Baseline a conversation, let the
+  -- object MOVE between conversations, then press again: the first box of the
+  -- new conversation must not be read as a departure.  This is the reported
+  -- "Bill: 'ASH, this is my buddy CELIO.' has no portrait" -- the Net Center
+  -- scene shifts Bill around, and a record left on him from the previous
+  -- conversation made his next line look like a walk-off.
+  Runtime.call("world.talk", function() end, {}, pressObj)
+  pressObj.cellX, pressObj.cellY = 9, 9
+  draws = {}
+  Message.show("A first conversation.")
+  Message.draw()
+  ok(paintsNow(wouldBe.image), "a conversation records where its speaker stands")
+
+  pressObj.cellX, pressObj.cellY = 40, 40   -- moved between conversations
+  Runtime.call("world.talk", function() end, {}, pressObj)
+  draws = {}
+  Message.show("Oh, hey, !Did you see?We got the PC working!")
+  Message.draw()
+  ok(paintsNow(wouldBe.image),
+    "a fresh press starts a fresh conversation -- its first box is not a departure")
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+  package.loaded["src.core.game3.objects"] = hadObjects
+end
+XF.departureTests()
+
+-- ------- 17. a scene's OWN actor walks out
+--
+-- The reported "Oak's aide portrait incorrectly persists after the aide leaves".
+-- The aide's scene has TWO entrances: pressing A on him (world.talk), and
+-- WALKING UP to him -- a coord event (`lockall`, no world.talk at all).  On the
+-- second one there is no press to drop, and the portrait comes from the SCENE
+-- route: sceneSpeaker reads the running script's own applymovement rows and
+-- names the aide.  A departure test keyed on the PRESS alone can never fire
+-- there, so sceneSpeaker simply named the aide again on the letter box and his
+-- portrait stayed -- the persistent case.
+--
+-- This drives the real Message.show with NO press at all, so only the scene
+-- route can answer, and walks the actor between boxes.
+function XF.sceneDepartureTests()
+  io.write("-- a scene's own actor walks out\n")
+
+  local function paintsNow(image)
+    for _, d in ipairs(draws) do if d.a == image then return true end end
+    return false
+  end
+
+  local hadObjects = package.loaded["src.core.game3.objects"]
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+
+  -- Class 17 -> picture 17, which is what `wouldBe` is, so the assertion is
+  -- about the SAME image the rest of the file already knows.
+  local actor = { localId = 7, trainerType = 17, sprite = "SPRITE_HIKER",
+                  cellX = 46, cellY = 20, def = {} }
+  package.loaded["src.core.game3.objects"] = {
+    find = function(lid)
+      if tonumber(lid) == 7 then return actor end
+      return nil
+    end,
+  }
+  -- A running script that MOVES the actor: that is what sceneSpeaker reads.
+  package.loaded["src.core.game3.scripting.space"] = {
+    vm = {
+      isRunning = function() return true end,
+      _scriptKey = "scene",
+      ctx = { pc = { listKey = "scene" }, stack = {} },
+      scripts = { scene = { { op = "applymovement", localId = 7 } } },
+    },
+  }
+
+  style, side = "inset", "left"
+
+  -- (a) no press at all: only the scene route can name anybody.
+  X.forgetSpeaker()
+  draws = {}
+  Message.show("Oh, !")
+  Message.draw()
+  ok(paintsNow(wouldBe.image),
+    "a scene-resolved speaker paints its portrait with no press behind it")
+
+  -- (b) the script walks the actor out between boxes -- applymovement, so no
+  -- world.stepped is raised and the engine says nothing.  The next box must be
+  -- bare, and it must stay bare even though sceneSpeaker can still see the
+  -- actor's applymovement row in the running script.
+  actor.cellX = 37
+  draws = {}
+  Message.show("There's a letter attached…")
+  Message.draw()
+  ok(not paintsNow(wouldBe.image),
+    "and stops painting it once the scene walks the actor out")
+
+  -- (c) the suppression is not permanent: a NEW conversation (a press, which
+  -- clears the flag) lets the scene name the actor again.
+  X.forgetSpeaker()
+  draws = {}
+  Message.show("Oh, !")
+  Message.draw()
+  ok(paintsNow(wouldBe.image),
+    "a fresh conversation names the scene's actor again")
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+  package.loaded["src.core.game3.objects"] = hadObjects
+end
+XF.sceneDepartureTests()
+
+-- ------- 18. the text colour says whether anybody is speaking
+--
+-- FRLG draws a speaking NPC's text in a colour taken from the person the script
+-- selected -- dark blue for a male, dark red for a female -- and the plain
+-- black/grey "normal" colour for everything that is not a person talking:
+-- narration, signs, item and letter boxes, and any box whose speaker the engine
+-- could not identify.  The engine hands that answer over in `opts.npcColor`
+-- (adapters.lua:417/452 -> Hud.openMessage -> message.lua:113), so the mod reads
+-- it: a box drawn in the black/grey colour gets NO portrait.
+function XF.colourTests()
+  io.write("-- the text colour says whether anybody is speaking\n")
+
+  local function paintsNow(image)
+    for _, d in ipairs(draws) do if d.a == image then return true end end
+    return false
+  end
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+  package.loaded["src.core.game3.scripting.space"] = nil
+  style, side = "inset", "left"
+  local EO = { trainerType = 17, sprite = "SPRITE_HIKER" }
+
+  draws = {}
+  openBox(EO, { npcColor = 0 })
+  Message.draw()
+  ok(paintsNow(wouldBe.image), "a MALE-coloured box paints the portrait")
+
+  draws = {}
+  openBox(EO, { npcColor = 1 })
+  Message.draw()
+  ok(paintsNow(wouldBe.image), "a FEMALE-coloured box paints it too")
+
+  draws = {}
+  openBox(EO, { npcColor = 3 })
+  Message.draw()
+  ok(not paintsNow(wouldBe.image),
+    "a black/grey (NEUTRAL) box paints nothing")
+
+  draws = {}
+  openBox(EO, {})
+  Message.draw()
+  ok(paintsNow(wouldBe.image),
+    "a box that carries no colour at all is not declined")
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+end
+XF.colourTests()
+
+-- ------- 19. a scene that alternates between two people
+--
+-- Three Island's bikers-and-locals scene (g3:081679b5) moves one person, shows
+-- their line, moves another, shows theirs, and so on.  Both are actors of the
+-- one script, so the old "exactly one actor or nobody" rule answered nothing and
+-- the whole scene came out bare; the actor of a box is the object the script
+-- moved most recently before it.
+function XF.alternatingSceneTests()
+  io.write("-- a scene that alternates between two people\n")
+
+  local function paintsNow(image)
+    for _, d in ipairs(draws) do if d.a == image then return true end end
+    return false
+  end
+  local hadObjects = package.loaded["src.core.game3.objects"]
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+
+  local A = { localId = 7, trainerType = 17, sprite = "SPRITE_HIKER",
+              cellX = 5, cellY = 5, def = {} }
+  local B = { localId = 8, trainerType = 43, sprite = "SPRITE_HIKER",
+              cellX = 6, cellY = 5, def = {} }
+  package.loaded["src.core.game3.objects"] = {
+    find = function(l)
+      l = tonumber(l)
+      if l == 7 then return A end
+      if l == 8 then return B end
+      return nil
+    end,
+  }
+  -- move A, box, move B, box, move A, box -- the scene's own shape
+  local rows = {
+    { op = "applymovement", localId = 7 },
+    { op = "callstd", std = 4 },
+    { op = "applymovement", localId = 8 },
+    { op = "callstd", std = 4 },
+    { op = "applymovement", localId = 7 },
+    { op = "callstd", std = 4 },
+  }
+  package.loaded["src.core.game3.scripting.space"] = {
+    vm = { isRunning = function() return true end, _scriptKey = "scene",
+           scripts = { scene = rows } },
+  }
+  local space = package.loaded["src.core.game3.scripting.space"]
+
+  style, side = "inset", "left"
+  -- portraitFor takes a DESCRIPTOR (class=...), while the OBJECTS carry
+  -- trainerType; class 17 -> picture 17 and class 43 -> picture 106.
+  local artA = X.portraitFor({ class = 17, sprite = "SPRITE_HIKER" })
+  local artB = X.portraitFor({ class = 43, sprite = "SPRITE_HIKER" })
+  ok(artA and artA.image and artB and artB.image and artA.image ~= artB.image,
+    "the harness has two pictures to tell apart")
+
+  -- the callstd rows and whose line each one is
+  for _, case in ipairs({ { 2, artA, "the first person" },
+                          { 4, artB, "the second person" },
+                          { 6, artA, "the first person again" } }) do
+    space.vm.ctx = { pc = { listKey = "std:4", index = 1 },
+                     stack = { { listKey = "scene", index = case[1] } } }
+    X.forgetSpeaker()
+    draws = {}
+    Message.show("A line with no name in it.")
+    Message.draw()
+    ok(paintsNow(case[2].image),
+      ("the box after the move at row %d wears %s's portrait"):format(case[1], case[3]))
+  end
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+  package.loaded["src.core.game3.objects"] = hadObjects
+end
+XF.alternatingSceneTests()
+
 io.write(("\n%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

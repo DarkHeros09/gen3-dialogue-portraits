@@ -504,10 +504,29 @@ local GFX_ART = {
   -- woman on a map with no trainer under this graphic now gets, instead of
   -- nothing.
   [28] = 144,            -- WOMAN_2 -> the Aroma Lady, the majority of its trainers
+  --
+  -- OBJ_EVENT_GFX_WOMAN_1 (23) had NO entry either, and it is the same shape as
+  -- the WOMAN_2 hole one release on: the host names it SPRITE_TEACHER
+  -- (src/core/game3/scripting/gfx_ids.lua:14), SPRITE_ART has no SPRITE_TEACHER
+  -- entry, and the sprite route is therefore declined by hostSpriteFor -- so
+  -- every one of the seventeen non-trainer women wearing it was answered with
+  -- nothing.  That is the reported "portraits are missing for some psychic
+  -- sprites": the graphic IS the female psychic's.  Three trainers wear it --
+  -- LAURA in Five Island's Lost Cave, JACLYN on Six Island's Green Path and
+  -- RODETTE in the Seven Island Trainer Tower, all PSYCHIC -- and all three
+  -- resolve through the trainer route already; the graphic itself answered
+  -- nobody, which is what the report saw.  Picture 138 is the cart's female
+  -- PSYCHIC bust, and it is what art/map_art.lua's own generated answer says
+  -- for all three of those maps ([23] = 138), so this entry is that same rule
+  -- for the maps that put no psychic on the graphic.  Measured over the whole
+  -- game by .probe/dp3_psychic.lua: graphic 23 is worn by 3 trainers, all
+  -- PSYCHIC, and by 17 non-trainer objects -- every one of which this entry is
+  -- what gives a face.
+  [23] = 138,            -- WOMAN_1 -> the female Psychic, the only class wearing it
 
   -- People the cart never drew a battle bust of.  Each of these was wearing
-  -- somebody else's face: a Fat Man the Fisherman's, a female Worker the
-  -- Scientist's, and Celio the Super Nerd's.  No portrait is this mod's answer.
+  -- somebody else's face: a Fat Man the Fisherman's and a female Worker the
+  -- Scientist's.  No portrait is this mod's answer.
   -- The Man is the same complaint one step milder: he shares SPRITE_POKEFAN_M
   -- with the Hiker, so the sprite route handed him the PokéFan's face -- and
   -- picture 32 is a BOY, so a grown man was wearing a child's.  Declining is
@@ -516,7 +535,30 @@ local GFX_ART = {
   [27] = false,          -- FAT MAN
   [48] = false,          -- WORKER (F)
   [76] = false,          -- DAISY, the rival's sister -- see the note below
-  [89] = false,          -- CELIO
+
+  -- CELIO (89) used to be in that list, and keeping it there was the same
+  -- mistake the Balding Man's was (see the note below): a decline that is right
+  -- for a graphic worn by anonymous townsfolk and wrong for one worn by a NAMED
+  -- person the cart drew.
+  --
+  -- OBJ_EVENT_GFX_CELIO (89) is worn by exactly ONE object in the whole game --
+  -- Celio himself, on One Island's Net Center floor.  Measured by
+  -- .probe/dp3_gfxwho.lua: 1 object, 0 trainers.  The cart's own overworld
+  -- sprite for him IS this graphic (src/core/game3/scripting/gfx_ids.lua:45,
+  -- sourced from the cart's event_objects.h), and the cart's bust for that
+  -- graphic is picture 89 -- the Super Nerd's, a bespectacled figure in a lab
+  -- coat, which is the visual the cart itself gives him.  Declining it left a
+  -- named story character with no face on ANY of his boxes, which is the
+  -- reported "Celio's portrait is missing from some of his dialogue boxes"; the
+  -- fix is one graphic, one person, one picture, exactly as 1.9.4 did for the
+  -- Engineer.
+  --
+  -- Graphic 89 and picture 89 being the same number is a coincidence of the two
+  -- number spaces this mod exists to keep apart (see the header on why a class
+  -- is not a picture), not a copy-paste.  The NAME route is what answers for him
+  -- in the Net Center's coord-event scene, where the box carries no object at
+  -- all; see NAME_ART.
+  [89] = 89,             -- CELIO -> the cart's own bust for his graphic
 
   -- DAISY is the one entry here that the SPRITE route had never answered for.
   -- She was wearing a face anyway, and it came from the name route: her box
@@ -646,7 +688,55 @@ local NAME_ART = {
   ["PROF.OAK"]  = "PROF. OAK",
   ["PROF. OAK"] = "PROF. OAK",
   RIVAL         = RIVAL_ART,
+  -- CELIO is the one name here whose box carries NO object to fall back on.  The
+  -- Net Center's Bill/Celio scene is a coord event -- `lockall`, no world.talk --
+  -- and it moves Bill, Celio AND the player, so sceneSpeaker answers nothing
+  -- (more than one actor) and the text's own "CELIO: " is the only fact left.
+  -- The value is the pack name for the bust his graphic maps to, so the picture
+  -- is resolved the same way every other name is (see GFX_ART's note on 89).
+  CELIO         = "SUPER NERD",
 }
+
+-- Three people the cart DREW but never gave a battle class -- so the class and
+-- sprite routes above cannot answer for them, and the reporter asks for each by
+-- name: Bill, Daisy and Mr. Fuji.
+--
+-- The cart keeps their art somewhere else.  FireRed's FAME CHECKER carries a
+-- 64x64 portrait for four non-trainers -- Oak, Daisy, Bill and Mr. Fuji -- and
+-- the engine extracts them to the same generated cache the rest of its ROM art
+-- lives in, then loads them through its own Fame Checker UI (src/ui/game3/
+-- fame_checker.lua, `portrait(person)`).  Asking that module for the portrait is
+-- the same act as asking TrainerPic.front for a class picture: it reads the
+-- PLAYER'S OWN extracted ROM art, so this mod still ships none.
+--
+-- The key is the text's own name, because that is the one fact a box carries for
+-- a person who has no class, no species and often no trainer row.  The value is
+-- the Fame Checker's person index (`FameChecker.PERSON`), and the picture id
+-- below is the mod's own synthetic key into art/crops.lua -- it is deliberately
+-- far above the cart's 148 front-pic ids so it can never collide with one.
+--
+-- Oak is left out on purpose: he already resolves to his POKéMON PROF. class
+-- picture through NAME_ART, and moving him to the Fame Checker art would change
+-- a portrait nothing asked to change.
+local FAME_NAME = {
+  BILL         = "BILL",
+  DAISY        = "DAISY",
+  ["MR. FUJI"] = "MRFUJI",
+  ["MR.FUJI"]  = "MRFUJI",
+  FUJI         = "MRFUJI",
+}
+local FAME_PERSON = { BILL = 13, DAISY = 1, MRFUJI = 14 }
+local FAME_PIC = { BILL = 313, DAISY = 301, MRFUJI = 314 }
+
+-- Two of the three also have an EXACT graphics id of their own, so a box that
+-- does not name them still resolves: OBJ_EVENT_GFX_BILL (73) is worn only by
+-- Bill and OBJ_EVENT_GFX_DAISY (76) only by Daisy (src/core/game3/scripting/
+-- gfx_ids.lua, and GFX_ART's own note on 76).  Mr. Fuji gets no entry: he wears
+-- a shared OLD_MAN graphic that every old man in the game wears, so a graphic
+-- key would put his face on all of them -- the exact wrong-face bug this mod
+-- exists to avoid.  His dialogue names him, and the name route answers.
+local FAME_GFX = { [73] = "BILL", [76] = "DAISY" }
+local FAME_SPRITE = { SPRITE_BILL = "BILL" }
 
 return function(mod)
   -- ------- engine modules
@@ -838,8 +928,144 @@ return function(mod)
   -- the last person you spoke to.
   local pressSpeaker = nil
 
+  -- Is a script running?  One implementation, asked from three places below:
+  -- the scene route reads the running script's own actor rows, and the press
+  -- record outlives a step and a move only while a script is in flight.
+  local function scriptRunning()
+    local ok, Space = pcall(require, "src.core.game3.scripting.space")
+    if not ok or type(Space) ~= "table" then return false end
+    local vm = Space.vm
+    if type(vm) ~= "table" or type(vm.isRunning) ~= "function" then return false end
+    local okR, running = pcall(vm.isRunning, vm)
+    return okR and running == true
+  end
+
+  -- Where the SPEAKER of the last box stood, and which object that was.  It is
+  -- deliberately not the press alone: a box finds its speaker two ways -- the
+  -- press record (world.talk) and the scene route (sceneSpeaker, for a scene
+  -- the NPC started) -- and a scripted departure is invisible to the engine in
+  -- BOTH, because only the player's own step emits world.stepped.  See
+  -- speakerLeftTheScene.
+  local spokeObject = nil
+  local spokeCell = nil
+
+  -- Set when the speaker of the last box walks off mid-conversation.  A press
+  -- is dropped outright (pressSpeaker = nil), but the SCENE route would simply
+  -- name the same object again on the next box -- the actor's applymovement
+  -- rows are still in the running script -- so the scene route has to be told
+  -- as well, or the portrait it draws would survive the departure.
+  local sceneGone = false
+
+  -- How far a speaker must be moved between two of their own boxes to count as
+  -- having LEFT the scene.  It is measured, not chosen: sweeping every script
+  -- in the game for an NPC moved between two boxes (.probe/dp3_midmove.lua)
+  -- gives 858 moves, and they fall into exactly two groups --
+  --
+  --     1 tile x267   2 tiles x390   3 tiles x101   4 tiles x 23   <- reposition
+  --     6 tiles x 19  7 x1  8 x1  9 x13  10 x10  14 x8  25 x4  62..64 x16
+  --
+  -- -- and **there is no 5**.  A one-to-four tile move is a character being
+  -- placed for the next line (Pewter's aide steps down to stand in front of the
+  -- player before his second line, g3:081663e6 / :081663fc); six or more is a
+  -- character walking out (the same aide's nine-tile exit to the left,
+  -- g3:08166445).  Treating the first as a departure is the reported "Oak's
+  -- aide's portrait is missing from 'I'm glad I caught up to you.'": the step
+  -- down fired the test and every box after it came out bare.
+  local LEFT_TILES = 5
+
   local function forgetSpeaker()
     pressSpeaker = nil
+    spokeObject = nil
+    spokeCell = nil
+    sceneGone = false
+  end
+
+  -- ------- the record ends when the script walks the speaker out
+  --
+  -- The record names the object the last box was about, and it is that object's
+  -- only while the script leaves them there.  FRLG walks a character OUT of a
+  -- scene after their lines and then shows a box that is not theirs -- Oak's
+  -- aide hands over the Running Shoes, walks nine tiles to the left, and the
+  -- letter from Mom that follows was wearing his face -- and the engine raises
+  -- nothing for it: only the PLAYER's own step emits world.stepped
+  -- (src/core/game3/player.lua:653), and a script moving an OBJECT is silent.
+  --
+  -- So the fact is read rather than waited for.  The engine keeps every
+  -- object's cell on the object (src/core/game3/objects.lua:155) and updates it
+  -- when a step completes (:551), so the question "has this object moved since
+  -- it last spoke?" is answerable at box time.
+  --
+  -- It covers BOTH ways a box finds its speaker.  The press record is the
+  -- obvious one, but the aide's scene is reached by WALKING UP to him -- a coord
+  -- event (g3:081662b7) that runs `lockall` and never raises world.talk -- so
+  -- the portrait there comes from the scene route, and a departure test keyed on
+  -- the press alone could never fire: sceneSpeaker simply named the aide again
+  -- on the letter box and the portrait stayed.  Recording the object the box
+  -- ACTUALLY resolved to (press or scene) is what closes that.
+  --
+  -- The cell is recorded LAZILY -- at the first box the speaker answers for --
+  -- and that laziness is the whole of the "has spoken" test.  A script that
+  -- moves the object BEFORE its first line (Bill's sprite stepping into the
+  -- teleporter, a line-of-sight trainer walking up to the player) therefore
+  -- records the cell it moved TO and is not mistaken for a departure; only a
+  -- move between two boxes ends the record.
+  --
+  -- An object the map no longer has counts as gone, which is the same answer.
+  local function speakerLeftTheScene()
+    if type(spokeObject) ~= "table" or type(spokeCell) ~= "table" then
+      return false
+    end
+    if not scriptRunning() then return false end
+    local lid = tonumber(spokeObject.localId)
+    if not lid or lid ~= spokeCell.lid then return false end
+    local ok, Objects = pcall(require, "src.core.game3.objects")
+    if not ok or type(Objects) ~= "table" or type(Objects.find) ~= "function" then
+      return false
+    end
+    local okF, eo = pcall(Objects.find, lid)
+    if not okF then return false end
+    -- An object the map no longer has has certainly left.
+    if type(eo) ~= "table" then
+      pressSpeaker = nil
+      spokeObject, spokeCell = nil, nil
+      sceneGone = true
+      return true
+    end
+    -- Moved -- but only a WALK-OFF counts.  A speaker who is placed for the
+    -- next line (Pewter's aide stepping down to face the player) is still in
+    -- the scene and still talking; see LEFT_TILES for the measurement that
+    -- separates the two.
+    local dx = math.abs((tonumber(eo.cellX) or 0) - spokeCell.x)
+    local dy = math.abs((tonumber(eo.cellY) or 0) - spokeCell.y)
+    if math.max(dx, dy) < LEFT_TILES then return false end
+    -- The speaker has walked out.  Drop the press outright, and tell the SCENE
+    -- route to stop naming them -- the actor's own applymovement rows are still
+    -- in the running script, so sceneSpeaker would otherwise answer again.
+    pressSpeaker = nil
+    spokeObject, spokeCell = nil, nil
+    sceneGone = true
+    return true
+  end
+
+  -- Re-baseline the record on the cell the speaker is standing on now, for the
+  -- box that just resolved to it.  Keyed on the object the box ACTUALLY used
+  -- (`speaker.object`), so a box answered by the press and a box answered by the
+  -- scene both refresh it, while a box answered only by the text -- which names
+  -- somebody and is not tied to an object -- does not.
+  local function noteSpokeCell(speaker)
+    if type(speaker) ~= "table" then return end
+    local eo = speaker.object
+    if type(eo) ~= "table" then return end
+    local lid = tonumber(eo.localId)
+    if not lid then return end
+    local ok, Objects = pcall(require, "src.core.game3.objects")
+    if not ok or type(Objects) ~= "table" or type(Objects.find) ~= "function" then
+      return
+    end
+    local okF, found = pcall(Objects.find, lid)
+    if not okF or type(found) ~= "table" then return end
+    spokeObject = eo
+    spokeCell = { lid = lid, x = tonumber(found.cellX), y = tonumber(found.cellY) }
   end
 
   -- ------- resolving art
@@ -1181,6 +1407,55 @@ return function(mod)
     return nil
   end
 
+  -- The cart's own Fame Checker portrait, for the three people it drew there
+  -- but nowhere in its battle art.  See FAME_NAME above for why this exists.
+  --
+  -- The image is asked of the engine's own Fame Checker UI rather than read
+  -- from a path here, so this file never spells the generated-tree path the
+  -- modkit lint rejects, and so the cache key, the palette and the 64x64 size
+  -- are the engine's business and not this mod's.  Every reach is pcall'd: a
+  -- boot whose cache has not been built yet simply declines, which is this
+  -- mod's answer everywhere the art is not there.
+  local function fameForKey(key)
+    if type(key) ~= "string" then return nil end
+    local person, pic = FAME_PERSON[key], FAME_PIC[key]
+    if not (person and pic) then return nil end
+    local ok, FC = pcall(require, "src.ui.game3.fame_checker")
+    if not ok or type(FC) ~= "table" or type(FC.portrait) ~= "function" then return nil end
+    local ok2, image = pcall(FC.portrait, person)
+    if not ok2 or not image then return nil end
+    local ok3, w, h = pcall(function() return image:getDimensions() end)
+    if not ok3 or not (w and h) then return nil end
+    return { image = image, w = w, h = h, pic = pic }
+  end
+
+  -- The name route's spelling of the same question, kept because a name is the
+  -- most specific fact a box can carry.
+  local function fameArt(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    return fameForKey(FAME_NAME[name:upper()])
+  end
+
+  -- The key a speaker's own facts resolve to: the name the text used first,
+  -- then an exact graphics id, then an exact sprite.  Ambiguous graphics (Mr.
+  -- Fuji's OLD_MAN) are deliberately absent, so this never guesses.
+  local function fameSpeakerKey(speaker)
+    if type(speaker) ~= "table" then return nil end
+    if type(speaker.name) == "string" then
+      local byName = FAME_NAME[speaker.name:upper()]
+      if byName then return byName end
+    end
+    if speaker.gfx ~= nil then
+      local byGfx = FAME_GFX[tonumber(speaker.gfx)]
+      if byGfx then return byGfx end
+    end
+    if type(speaker.sprite) == "string" then
+      local bySprite = FAME_SPRITE[speaker.sprite]
+      if bySprite then return bySprite end
+    end
+    return nil
+  end
+
   -- The species a sprite id depicts, or nil.  SPRITE_PIKACHU's tail IS
   -- "PIKACHU"; the generic SPRITE_MONSTER / _FAIRY / _BIRD / _DRAGON tails are
   -- not species keys, so they decline by themselves -- which is exactly what
@@ -1290,6 +1565,24 @@ return function(mod)
     for i = 1, 3 do
       local own = customArt(keys[i])
       if own then return own end
+    end
+
+    -- 1b. the cart's own Fame Checker portrait, for the three characters the
+    --     reporter asks for by name.  It is asked BEFORE the pack's own name
+    --     route because the pack knows one of those names and means a
+    --     DIFFERENT person: FRLG's trainer table has a PAINTER called DAISY
+    --     (id 526, picture 147), and Pallet Town's Daisy Oak is not her.  This
+    --     route is also what gives the three of them a face in an NPC-started
+    --     scene, where there is no press and no class and the text's own name
+    --     is the only fact in play.
+    --
+    --     CustomArt/ still outranks it -- step 1 runs first -- so a player who
+    --     drops CustomArt/BILL.png in gets their own art.  The name is the
+    --     first key tried, then an exact graphics id (Bill 73, Daisy 76), so a
+    --     box that does not name them still resolves.
+    do
+      local fame = fameForKey(fameSpeakerKey(speaker))
+      if fame then return fame end
     end
 
     -- 2. a name the text used that is a trainer's own name -- exact.  A name the
@@ -1516,12 +1809,132 @@ return function(mod)
     return (name:gsub("%s+$", ""))
   end
 
+  -- ------- who, when the NPC started it
+  --
+  -- A press names its speaker through world.talk, and a line-of-sight trainer
+  -- through world.trainer_engaged.  A scene the NPC itself starts -- a coord
+  -- event, an ON_FRAME map script, a cutscene that walks somebody over -- has
+  -- neither: the engine begins the script and the box arrives with
+  -- pressSpeaker nil.  That is the reported "a portrait appears when the player
+  -- starts it but not when the NPC does".
+  --
+  -- When the text names the speaker, the name route still answers.  When it does
+  -- not, the actor is read out of the running script, the way the Gen 2 port
+  -- reads it: an FRLG scene MOVES and TURNS the object it is about, and the
+  -- engine's decoded script is a table of command rows, so the object a scene
+  -- touches is a fact in the data rather than a guess about the map.
+  --
+  -- Ambiguity answers nothing.  A scene that touches several objects -- a
+  -- grunt AND the rival, a walk-on with a crowd -- has no single actor, and
+  -- showing nobody is this mod's answer wherever the data does not decide.  A
+  -- row whose id is not a live object (the player, a variable alias such as
+  -- VAR_LAST_TALKED) resolves to nothing and is not counted.
+  local ACTOR_OPS = {
+    applymovement = true, applymovementat = true, turnobject = true,
+    addobject = true, addobjectat = true, removeobject = true,
+    removeobjectat = true, setobjectxy = true, setobjectxyperm = true,
+  }
+
+  local function sceneSpeaker()
+    -- The same question the press record asks, so it is asked once (see
+    -- scriptRunning).  A scene only exists while its script is running.
+    if not scriptRunning() then return nil end
+    -- ...and it stops existing for this conversation the moment its actor walks
+    -- out of it.  The actor's applymovement rows are still in the running
+    -- script, so without this the scene route would name a speaker who has left
+    -- the scene -- Oak's aide's portrait on the letter from Mom, drawn from the
+    -- coord-event path where there is no press to drop.  See
+    -- speakerLeftTheScene.
+    if sceneGone then return nil end
+    local ok, Space = pcall(require, "src.core.game3.scripting.space")
+    if not ok or type(Space) ~= "table" then return nil end
+    local vm = Space.vm
+    if type(vm) ~= "table" then return nil end
+
+    local ctx = vm.ctx or {}
+
+    local okO, Objects = pcall(require, "src.core.game3.objects")
+    if not okO or type(Objects) ~= "table" or type(Objects.find) ~= "function" then
+      return nil
+    end
+
+    -- Is this row one that moves or turns a live object the scene is about?
+    local function actorAt(key, index)
+      local rows = vm.scripts and vm.scripts[key]
+      if type(rows) ~= "table" then return nil end
+      local row = rows[index]
+      if type(row) ~= "table" or not ACTOR_OPS[row.op] then return nil end
+      local lid = tonumber(row.localId or row[1])
+      -- 0xFF is the PLAYER, who is not an object and never a portrait.
+      if not lid or lid == 0xFF then return nil end
+      local okF, eo = pcall(Objects.find, lid)
+      if not okF or type(eo) ~= "table" then return nil end
+      return eo
+    end
+
+    -- The actor of THIS box is the object the script most recently moved or
+    -- turned BEFORE the box, because that is the scene's own idiom: place the
+    -- speaker, then show their line.
+    --
+    -- Scanning the whole script for "the one actor" cannot answer when a scene
+    -- alternates between two people.  Three Island's bikers-and-locals scene
+    -- (g3:081679b5) moves localId 1 (a local), shows his line, moves localId 3
+    -- (the biker boss), shows his line, and so on for five boxes -- both are
+    -- actors of the one script, so the old rule answered "nobody" and the whole
+    -- scene came out bare.  Recency is what tells them apart, and it is also
+    -- what the engine itself keys on: it derives the text colour from the
+    -- object the script selected for the box (see the colour rule below).
+    local function nearest(key, from)
+      local rows = vm.scripts and vm.scripts[key]
+      if type(rows) ~= "table" then return nil end
+      local start = tonumber(from) or #rows
+      if start > #rows then start = #rows end
+      for i = start, 1, -1 do
+        local eo = actorAt(key, i)
+        if eo then return eo end
+      end
+      return nil
+    end
+
+    -- The command being executed comes first (a box is often opened by a called
+    -- std stub, which has no actor rows of its own), then each caller outward
+    -- from its own call site (ops_a.lua:356 pushes {listKey, index}).
+    if ctx.pc and ctx.pc.listKey then
+      local eo = nearest(ctx.pc.listKey, ctx.pc.index)
+      if eo then return eo end
+    end
+    local stack = ctx.stack or {}
+    for i = #stack, 1, -1 do
+      local frame = stack[i]
+      if type(frame) == "table" then
+        local eo = nearest(frame.listKey, frame.index)
+        if eo then return eo end
+      end
+    end
+    -- Last resort: the entry point, in case the scene is reached by a `goto`
+    -- that left no frame behind.
+    if type(vm._scriptKey) == "string" then
+      local eo = nearest(vm._scriptKey)
+      if eo then return eo end
+    end
+    return nil
+  end
+
   -- ------- the resolver
   local function speakerFor(text)
-    -- The object the press resolved is read FIRST, so that a name the text
-    -- supplied can ride along WITH it rather than instead of it.  See the note
-    -- on the name route below for why that matters.
-    local eo = pressSpeaker
+    -- The object the running script stages for THIS box is read FIRST, and the
+    -- press record is the fallback.  A script that moves or turns somebody
+    -- immediately before a line is saying "this line is theirs" -- that is the
+    -- scene route's own rule (see sceneSpeaker) -- and it has to outrank the
+    -- press, because a single pressed script can hand the box to somebody else.
+    -- Three Island's biker/local dialogue (g3:0816786f, reached by pressing any
+    -- one of them) alternates four speakers inside one press: the pressed
+    -- object is right for at most one of its boxes, and the other three wore its
+    -- face.  When the script stages nobody -- the ordinary `lock`/`faceplayer`/
+    -- box press -- sceneSpeaker answers nil and the press is used, which is
+    -- every other conversation in the game.
+    local eo = sceneSpeaker()
+    if type(eo) ~= "table" then eo = pressSpeaker end
     local class, sprite, species, gfx, scriptKey, trainerId, mapId
     if type(eo) == "table" then
       local def = eo.def or {}
@@ -2429,6 +2842,39 @@ return function(mod)
     return "dialogue"
   end
 
+  -- ------- the text colour says whether anybody is speaking
+  --
+  -- FRLG draws a speaking NPC's text in a colour taken from the person the
+  -- script selected: dark blue for a male, dark red for a female, and the plain
+  -- BLACK/GREY "normal" colour for everything that is not a person talking --
+  -- narration, signs, item and letter boxes, and any box whose speaker the
+  -- engine could not identify (src/core/game3/scripting/adapters.lua
+  -- resolveNpcColor returns NEUTRAL when the script selected no object).
+  --
+  -- So the colour is the engine's own answer to "is somebody speaking here?",
+  -- and the mod's rule is the reported one: **a box drawn in the black/grey
+  -- colour gets no portrait**.  Oak's aide's letter from Mom is the worked
+  -- example -- the script sets `textcolor 3` before it (g3:081662de row 51), so
+  -- the engine draws it in NORMAL, and that is why it must be bare, quite apart
+  -- from the aide having walked off.
+  --
+  -- The engine hands the answer over in `opts.npcColor` (adapters.lua:417/452
+  -- pass it to Hud.openMessage; message.lua:113 turns it into the colour table,
+  -- and anything that is not MALE or FEMALE becomes NORMAL).  A box carrying no
+  -- npcColor at all is NOT declined: every field box in the game carries one, so
+  -- an absent value means a caller outside the field path (a suite, a menu)
+  -- rather than a black/grey box.
+  local function coloursAllowPortrait(opts)
+    if type(opts) ~= "table" then return true end
+    local c = opts.npcColor
+    if c == nil then return true end
+    local ok, FrlgFont = pcall(require, "src.ui.game3.frlg_font")
+    if not ok or type(FrlgFont) ~= "table" then return true end
+    local neutral = FrlgFont.NPC_TEXT_COLOR and FrlgFont.NPC_TEXT_COLOR.NEUTRAL
+    if neutral == nil then neutral = 3 end
+    return tonumber(c) ~= neutral
+  end
+
   -- How wide the text is laid out, in pixels, for a given layout.
   --
   -- FRAMED's answer depends on the PORTRAIT, not on a constant: the panel is
@@ -2460,14 +2906,28 @@ return function(mod)
     local style = opt("style", "inset")
     activeStyle, activePortrait, activePlan = style, nil, nil
 
+    -- The speaker of the last box is the speaker only while the script leaves
+    -- them where they were.  A script that has walked them away ends the record
+    -- HERE, before this box is resolved, so a box that follows a departure --
+    -- Oak's aide's letter from Mom -- is bare.  It ends the SCENE route too, not
+    -- just the press, because the aide's scene is a coord event with no press.
+    -- See speakerLeftTheScene for why the engine raises nothing for this.
+    speakerLeftTheScene()
+
     -- The speaker is resolved before the call as well as after it, and the two
     -- answers do different jobs.  Before: only to size the wrap, because the
     -- wrap happens inside vanillaShow and a layout that narrows the text has to
     -- narrow the wrap in the same breath.  After: the draw, once frameKind() is
     -- the engine's own verdict rather than a reading of opts.
+    --
+    -- Three gates, and each is the engine's own answer rather than a guess: the
+    -- layout is not OFF, the frame is field dialogue, and the text is not drawn
+    -- in the black/grey colour (see coloursAllowPortrait).
     local pending, side, width, plan = nil, nil, nil, nil
-    if style ~= "off" and frameFromOpts(opts) == "dialogue" then
-      local speaker = speakerFor(text)
+    local speaker = nil
+    if style ~= "off" and frameFromOpts(opts) == "dialogue"
+        and coloursAllowPortrait(opts) then
+      speaker = speakerFor(text)
       local portrait = speaker and portraitFor(speaker)
       if portrait then
         pending = portrait
@@ -2515,6 +2975,11 @@ return function(mod)
 
     if pending and Message.frameKind() == "dialogue" then
       activePortrait, activeSide, activePlan = pending, side, plan
+      -- This box resolved to an object, so remember where it is standing: the
+      -- next box compares against it, and only a move BETWEEN boxes counts as
+      -- the speaker leaving (see speakerLeftTheScene).  The object may have come
+      -- from the press OR from the scene route -- both are recorded.
+      noteSpokeCell(speaker)
     end
     return result
   end
@@ -2628,6 +3093,15 @@ return function(mod)
     -- The hook fires only for a press that reached an object with a script, so
     -- recording here is recording a conversation -- not a sign, not a hidden
     -- item, not a menu.
+    -- A fresh press starts a FRESH conversation, so the previous record is
+    -- dropped outright.  Keeping its cell would compare it against this
+    -- object's and read the first box of the new conversation as a departure:
+    -- Bill's own script moves him (applymovement 2, g3:08170eb1) before his
+    -- "this is my buddy CELIO" line, so a record left on Bill from the last
+    -- conversation made that move look like a walk-off and the line came out
+    -- bare -- the reported "Bill: 'ASH, this is my buddy CELIO' has no
+    -- portrait".
+    forgetSpeaker()
     pressSpeaker = eo
     return next(game, eo)
   end)
@@ -2666,6 +3140,7 @@ return function(mod)
               trainerId = payload.trainerId or npc.trainerId,
               trainerType = npc.trainerType or payload.trainerClass }
     end
+    forgetSpeaker()
     pressSpeaker = npc
   end)
 
@@ -2689,7 +3164,25 @@ return function(mod)
   -- where Vm:start ends the script it supersedes), and that is the same
   -- conversation continuing -- clearing there would drop the portrait from the
   -- boxes the second half shows.
-  mod.events:on("world.stepped", forgetSpeaker)
+  -- A step ends the conversation only when it is the PLAYER'S OWN.  FRLG walks
+  -- the player around inside a script -- `applymovement 0xFF` is how a cutscene
+  -- turns the player to face the speaker, or walks them into a scene -- and
+  -- that goes through Player.scriptStep -> Player.finishStep, which is the same
+  -- place a real step emits world.stepped (src/core/game3/player.lua:653).  So
+  -- the event fires mid-conversation, and dropping the record there cost the
+  -- portrait on every box after it: the reported "some dialogue boxes lose the
+  -- portrait partway through".  Oak's aide is the worked example -- the
+  -- `applymovement 255` branches at g3:081663da / :081663e6 / :081663fc run
+  -- between the first box and the rest of his speech.
+  --
+  -- While a script is running, the step is the scene's, not the player's, and
+  -- the record stands.  The script's own end still clears it (script.ended
+  -- below), so nothing outlives the conversation.  This is the guard the Gen 2
+  -- port has carried since 1.3.3 (`if not scriptRunning(gameRef) then
+  -- forgetSpeaker() end`).
+  mod.events:on("world.stepped", function()
+    if not scriptRunning() then forgetSpeaker() end
+  end)
   mod.events:on("map.entered", forgetSpeaker)
   mod.events:on("script.ended", function(payload)
     if type(payload) == "table" and payload.completed == false then return end
@@ -2940,6 +3433,20 @@ return function(mod)
   -- it was standing on when the box was drawn.
   mod.exports.MAP_ART = MAP_ART
   mod.exports.mapIdNow = mapIdNow
+  -- The cart's Fame Checker portraits, exported so the suite can assert the
+  -- three names the reporter asks for map to the engine's own person indices
+  -- (Bill 13, Daisy 1, Mr. Fuji 14) and to no picture a class could collide
+  -- with, rather than only that artFor happens to return something.
+  mod.exports.FAME_NAME = FAME_NAME
+  mod.exports.FAME_PERSON = FAME_PERSON
+  mod.exports.FAME_PIC = FAME_PIC
+  mod.exports.FAME_GFX = FAME_GFX
+  mod.exports.FAME_SPRITE = FAME_SPRITE
+  mod.exports.fameArt = fameArt
+  mod.exports.fameSpeakerKey = fameSpeakerKey
+  -- The NPC-started scene route, so the suite can prove it reads the actor out
+  -- of the running script rather than that it merely did not crash.
+  mod.exports.sceneSpeaker = sceneSpeaker
   mod.exports.portraitFor = portraitFor
   mod.exports.INSET_ART = INSET_ART
   mod.exports.SLOT = SLOT
