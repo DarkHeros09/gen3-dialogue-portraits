@@ -1,0 +1,51 @@
+# Development-only files, kept out of the packed mod.
+#
+# Entries are exact relative paths -- modkit matches the whole path, not a
+# directory prefix -- so a new test file needs its own line here.
+#
+# `modkit pack` zips everything under the mod directory, so anything listed
+# here is also left out of the release, which is what we want: the tests need a
+# gen1recomp checkout to run against and are no part of the installed mod.
+#
+# tools/ is the same kind of thing: four Python scripts that need the ROM and
+# a gen1recomp checkout to do anything at all.  Three of them are how the fact
+# that matters most about this port was established -- that FRLG's trainer class
+# and trainer front pic are different number spaces -- and the fourth is the
+# vendored release builder the CI workflow calls.  They are worth keeping in the
+# source tree, but an installed mod has no use for them.
+tests/dp3_speaker_test.lua
+tests/dp3_geometry_test.lua
+tests/dp3_load_test.lua
+tests/dp3_menu_test.lua
+tests/launcher_update_test.lua
+tools/dump_class_names.py
+tools/dump_class_pics.py
+tools/dump_trainers.py
+tools/build_release.py
+
+# Player-supplied art.
+#
+# CustomArt/ is the documented route for giving a portrait to somebody the ROM
+# has none for (see CustomArt/README.md), and every file a PLAYER drops here is
+# their own business -- commit it or don't, it is not part of the mod.
+#
+# This mod ships no art at all: every portrait is cut at runtime out of the
+# engine's own extraction of the player's ROM, so there is nothing here that
+# needs to ride along.  CustomArt/README.md is deliberately NOT listed -- it is
+# the how-to and it ships.  Add a line here for anything you drop in locally so
+# a personal experiment never ends up in the package.
+
+# A guard, not a description of the tree.
+#
+# The tree itself carries no build output: the release zip is built by CI from
+# the tagged tree and attached to the GitHub Release, never committed (see
+# .github/workflows/release.yml, and .gitignore).  These two lines are here for
+# the case where somebody builds a release by hand *into the repo root* -- both
+# `modkit pack` and tools/build_release.py walk the whole tree, so a stray
+# artifact gets folded into the next build.
+#
+# Exact paths, like every other entry here, so a version bump means renaming
+# them.  `tests/launcher_update_test.lua` fails if they stop matching the
+# manifest's id and version, which is the reminder.
+gen3-dialogue-portraits-1.0.0.modpkg
+gen3-dialogue-portraits-1.0.0.zip

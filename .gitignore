@@ -1,0 +1,37 @@
+# This mod ships no art and no ROM data.  Every portrait is cut, at runtime,
+# out of the engine's own extraction of the player's own ROM, so there is
+# nothing ROM-derived in this tree to ignore -- the entries below exist so that
+# a local experiment cannot commit one by accident.
+#
+# ROM images.  Never commit these, in this repo or any other.
+*.gba
+*.gbc
+*.gb
+*.gba.sav
+*.sav
+*.sa1
+Pokemon_FireRed.gba
+Pokemon_LeafGreen.gba
+
+# ROM-hack patch formats -- same reasoning, they carry Nintendo's data.
+*.ips
+*.ups
+*.bps
+*.aps
+
+# Verbatim, un-cropped ROM extracts, if a fork ever produces any while working
+# on art/crops.lua locally.  Not a derivative work, but not something to ship.
+art/trainers_raw/
+art/pokemon_raw/
+
+# Build output.  The release artifacts are built by CI from the tagged tree and
+# attached to the GitHub Release; they are never committed.  See
+# .github/workflows/release.yml, and MANUAL.md's "Releasing it".
+*.modpkg
+gen3-dialogue-portraits-*.zip
+dist/
+
+# OS junk
+Thumbs.db
+desktop.ini
+.DS_Store
