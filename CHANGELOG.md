@@ -1,5 +1,279 @@
 # Changelog
 
+## 1.2.0 — every sprite a name, every name the right face
+
+Everything since 1.1.0, in one release: four reports, all of them the same shape
+— a portrait that was decided by something less specific than the fact in hand.
+
+**What changed**
+
+- **Every Tamer sprite answers.** Graphic 25 carries six **TAMERs**, three Young
+  Couples and twenty ordinary men; the graphic table declined it outright, so the
+  same sprite answered on the four maps a Tamer stands on and nowhere else. It
+  now carries the Tamer's own bust, its majority class.
+- **Four crop windows the default did not look through** — the **Biker**, the
+  **Pokémon Breeder**, the **Ruin Maniac** and the **LADY**. Each is a picture
+  whose head sits somewhere the default `{16,3,32}` does not look, so it cut the
+  face or spent the window on empty art. All four are measured from the ROM's own
+  art, by the crop table's own stated rule.
+- **The cart's one other speaker label.** The name rule knew only the all-caps
+  `NAME:` token; the cart also writes a single capitalised word, `Butler: `. Five
+  boxes use it, and because they counted as naming nobody they fell to the object
+  route — which names whichever object the scene moved last, not the speaker. The
+  butler changed face in the middle of the Resort Gorgeous scene, and two of his
+  three faces were not his.
+- **The mod's own name table now runs with the pack's name route**, not after the
+  graphic. A name the text used is the one fact a script cannot get wrong;
+  everything below it is a guess from a graphic.
+- **Lady Selphy's own maps.** The generated per-map table is built from trainer
+  objects, so the two maps where she stands as a non-trainer had no entry — and
+  the box that opens *"I wish to see a Pokémon."* carries no name, so it drew the
+  Aroma Lady's face while every `"SELPHY: "` box drew hers. She now draws **146**
+  in her house, in Lost Cave Room 10 and outdoors alike.
+
+**How it is verified**
+
+- **1052 checks, 0 failures** headless, plus **52 checks inside LÖVE 11.5**
+  driving the real message box and the real decoded scripts.
+- Every change is **bite-proven** — reverting it fails the suite.
+- Every resolver change is **measured for blast radius**: every field object
+  (1648) and every distinct dialogue text (2139) resolved before and after, with
+  the diff stated in each section below.
+
+The four sections below are the same work release by release, with the
+measurements.
+
+## 1.1.4 — Selphy's own map, which the generated table cannot see
+
+The report: *"the incorrect portrait for Lady Selphy in the Lost Cave, and in
+Resort Gorgeous during the dialogue from 'I wish to see a Pokémon' through the
+end of the conversation."*
+
+1.1.3 fixed the boxes that NAME her. This is the box that does not.
+
+### What was wrong
+
+`art/map_art.lua` — the per-map table that says which class a shared graphic
+means **on this map** — is generated from **TRAINER objects**
+(`.probe/dp3_emit_map_art.lua`). A map whose only speaker of a graphic is a
+non-trainer therefore has no entry for it, and the graphic's own table answers,
+which for a shared graphic is its **majority class**.
+
+Lady Selphy wears `OBJ_EVENT_GFX_WOMAN_2` (28), shared by LADY, AROMA LADY and
+POKéMON BREEDER, so `GFX_ART[28]` is the **Aroma Lady's 144**. Her Resort
+Gorgeous House has no trainers at all, and neither does Lost Cave Room 10.
+
+The box that opens **"I wish to see a POKéMON."** (`g3:08171efe`) is the one that
+showed it: it carries **no name** and moves nobody, so it is resolved from her own
+object — **144** — while every box of hers that says `"SELPHY: "` resolves **146**
+through the name route. One conversation, two faces. The Lost Cave double of her
+never had the right one at all.
+
+### The fix
+
+A hand-written `PLACE_ART` — `(map, graphic) -> picture` — asked **before**
+`MAP_ART` and before `GFX_ART`:
+
+| map | graphic | picture |
+| --- | --- | --- |
+| `FR_FIVE_ISLAND_RESORT_GORGEOUS_HOUSE` | 28 | **146** |
+| `FR_FIVE_ISLAND_LOST_CAVE_ROOM10` | 28 | **146** |
+
+It is hand-written on purpose: the generated table must stay generated. The
+outdoor Resort Gorgeous already says 146 for this graphic through that table,
+because two Ladies do stand there as trainers — `PLACE_ART` is that same answer
+for the two maps it cannot reach. Selphy now draws **146** in all three places.
+
+### Blast radius, measured
+
+Every field object resolved before and after (`.probe/dp3_art_sweep.lua`,
+`DP3_DUMP=1`, against `git archive HEAD` and the working tree): **1648 objects,
+exactly 2 changed** —
+
+```
+FiveIsland_LostCave_Room10|1        144 -> 146
+FiveIsland_ResortGorgeous_House|1   144 -> 146
+```
+
+### Verification
+
+- **1052 checks, 0 failures** — load 23, menu 29, speaker **432** (up from 425),
+  geometry 521, launcher 47.
+- **Bite-proven**: deleting the two entries fails the suite.
+- Gates on the tree: `validate --strict` ok · `lint` ok · `gen3check --strict` ok.
+
+## 1.1.3 — the label the name rule did not know
+
+The report: *"LADY Selphy displays the wrong portrait in the Lost Cave and in
+Resort Gorgeous, where she swaps portraits mid-dialogue; the butler also
+displays the wrong portrait."*
+
+The root cause is in the portrait SELECTION, and it has two halves.
+
+### One: the cart writes a second kind of speaker label
+
+The name rule reads the cart's all-caps `NAME:` token. The cart has exactly one
+other speaker-label shape — a single capitalised word, `Butler: ` — and the rule
+did not know it, so those boxes were treated as naming nobody. Measured over
+every dialogue box in the game (`.probe/dp3_labels.lua`), there are only **four**
+labels of that shape and only the first is a person:
+
+| label | boxes | what it is |
+| --- | --- | --- |
+| `Butler:` | 5 | the butler of Resort Gorgeous |
+| `Diary:` | 4 | the Pokémon Mansion's diaries |
+| `Hint:` | 1 | a sign |
+| `Name:` | 7 | the Pokédex-evaluation signs |
+
+`nameFromText` now reads the capitalised shape too. The other three resolve to
+nothing through `NAME_ART` and the pack, so their boxes are **unchanged** — the
+regression sweep below is what proves it.
+
+### Two: the mod's own name table ran LAST
+
+`NAME_ART` was consulted at the tail of the resolver, after the graphic and class
+routes — so for a box the name rule DID recognise, the graphic still answered
+first. It now runs beside the pack's name route (step 2b), which is the mod's
+own principle: *a name the text used is the one fact the script cannot get
+wrong, and everything below it is a guess from a graphic.*
+
+### What that produced, and what it produces now
+
+The Resort Gorgeous House scene (`g3:08171f34`) moves SELPHY for her own line
+and then shows **two of the butler's**. With the label unknown, those two boxes
+fell to the OBJECT route, which names the object the script moved most recently —
+SELPHY — so they carried her object (gfx 28) and wore the Aroma Lady's 144, while
+his third box carried his own (gfx 61) and wore the Gentleman's 123: **the
+butler changed face mid-scene, and two of his three faces were not his.** That is
+also what was read as Selphy swapping, and what made her look wrong in Resort
+Gorgeous: the 144s in that scene were never hers.
+
+| box | before | after |
+| --- | --- | --- |
+| SELPHY: Oh, hello, there… | 146 | **146** |
+| Butler: Yes, my lady. | 123 | **123** |
+| SELPHY: See to it that this person… | 146 | **146** |
+| Butler: I shall do as you bid, my lady. | **144** | **123** |
+| Butler: I sincerely thank you… | **144** | **123** |
+
+`NAME_ART` gains `BUTLER = "GENTLEMAN"` — the class the cart itself draws him as
+(`OBJ_EVENT_GFX_GENTLEMAN`, graphic 61) — so his label and his own object agree
+on 123.
+
+### Every affected scene, not only the reported one
+
+Every dialogue box in the game — **2139 distinct texts** — was resolved before
+and after (`.probe/dp3_text_sweep.lua`, run against the previous tree and this
+one):
+
+- **picture changes: 5** — the five `Butler:` boxes, `NONE` → `123`. Nothing else
+  in the game changes picture at all.
+- **name-only changes: 16** — those 5 plus the 4 `Diary:`, 1 `Hint:` and 7
+  `Name:` boxes, whose pictures are untouched.
+
+`Butler:` is the only person-shaped label of its kind in the cart, so those five
+boxes ARE every affected scene.
+
+### Selphy's own portrait
+
+Worth stating plainly, because the report asks for it: her picture is the cart's
+own answer — her trainer row names her (id 606, class 105, picture 146) and every
+one of her boxes says `"SELPHY: "`, so she draws 146 on every box she speaks.
+The two gfx-28 objects that do not speak are the static one in Lost Cave Room 10
+(no script at all) and her own House object, whose boxes all carry her name.
+
+### Verification
+
+- **1045 checks, 0 failures** — load 23, menu 29, speaker **425** (up from 417),
+  geometry 521, launcher 47.
+- **Bite-proven**: removing the capitalised-label rule fails 2 speaker checks;
+  moving `NAME_ART` back to the tail fails 1.
+- Gates on the tree: `validate --strict` ok · `lint` ok · `gen3check --strict` ok.
+
+## 1.1.2 — four windows the default did not look through
+
+The report: *"adjust the portrait framing for the Biker, Pokémon Breeder and Ruin
+Maniac characters, and replace the Lady Selphy portrait with the correct one."*
+All four are the same kind of thing: a picture the crop table had no entry for,
+so it fell to the default `{16, 3, 32}` — a window written for a bust that fills
+the middle of its 64x64 square — and the picture's head is somewhere else.
+
+`art/crops.lua` states the rule in its own words (against picture 66): **x is the
+face's centre minus 16, y the artwork's first row minus three rows of headroom,
+clamped at 0.** Measured from the `.rgba` dumps by `.probe/dp3_measure.py`:
+
+| picture | class | head | first art row | window |
+| --- | --- | --- | --- | --- |
+| **91** | BIKER | x 15–31, centre 23 | 2 | `{7, 0, 32}` |
+| **141** | POKéMON BREEDER | x 24–42, centre 33 | 15 | `{17, 12, 32}` |
+| **145** | RUIN MANIAC | x 23–42, centre 33 | 12 | `{17, 9, 32}` |
+| **146** | LADY | face centre 32 | 0 | `{16, 0, 32}` |
+
+- The **Biker** is a rider hunched over a motorbike, drawn small and high; the
+  default began one pixel to the *right* of his head, so it took half his face
+  off and spent the rest of the window on the fuel tank.
+- The **Breeder** and the **Ruin Maniac** are both figures whose artwork does not
+  start until row 15 and 12, so the default spent its top third on nothing and
+  cut them off at the chest.
+- The **LADY** is Lady Selphy's own picture. Her hat's crown is the first opaque
+  row, so the default's `y` of 3 took the top of the hat off.
+
+**On Selphy's portrait itself**, one thing is worth stating plainly: the picture
+was already the cart's own answer. The cart's trainer table names her (id 606,
+class 105, picture 146), her graphic is `OBJ_EVENT_GFX_WOMAN_2` (28) — which the
+LADY, AROMA LADY and POKéMON BREEDER classes share, so `GFX_ART[28]` answers the
+AROMA LADY's 144 — and every one of her boxes says `"SELPHY: "`, so the name route
+gives her 146 and has done since the name route existed. What her portrait needed
+was the window, and that is what this release gives it. The same picture is worn
+by the two Ladies standing outside on the island, who want the same window.
+
+### Nothing else changed
+
+`art/crops.lua` is **35 added lines and 0 deletions** — the four keys above, and
+nothing else in the table. Every other portrait keeps the window it had.
+
+- **1037 checks, 0 failures** — load 23, menu 29, speaker **417** (up from 412),
+  geometry **521** (up from 515), launcher 47.
+- **Bite-proven**: deleting the four entries fails 4 geometry checks.
+- Gates on the tree: `validate --strict` ok · `lint` ok · `gen3check --strict` ok.
+
+## 1.1.1 — every Tamer sprite answers
+
+The report: *"not all Tamer sprites have associated portraits."*
+
+`GFX_ART[25]` (the Man) was one of the `false` entries — a graphic the cart drew
+no bust of. That is right for the twenty ordinary men who wear it and wrong for
+the **TAMER** class the cart also put on it: measured by
+`.probe/dp3_classgfx.lua`, graphic 25 carries **9 trainer objects — six TAMERs
+(class 78) and three YOUNG COUPLEs (94) — and 20 ordinary men**, and the majority
+of the classes on it is the Tamer.
+
+The nine trainers already had their own pictures through the trainer-id route, and
+`art/map_art.lua` already answered **103** for this graphic on each of the four
+maps a Tamer stands on (Viridian Gym, Fuchsia Gym, Victory Road 2F, Sevault
+Canyon). So the *same* sprite answered on those four maps and nowhere else —
+which is exactly the reported shape.
+
+`[25] = 103` now — the Tamer's own bust, a man in a man's clothes with a whip
+raised (`.probe/dp3_dump_pics.lua` dumps it). That is a plausible face for the
+twenty men, and it is what the map route already gave the nine trainers. The
+sprite route's own answer is still refused — it would hand them the PokéFan's
+picture 66, a boy with a net — because the graphic's entry outranks it.
+
+### Nothing else changed, and that is measured
+
+Every one of the game's **1649 field objects** was resolved before and after
+(`DP3_DUMP=1 luajit .probe/dp3_art_sweep.lua gen1recomp <tree>`): **20 changed,
+every one of them graphic 25, every one `NONE` → `103`; 1629 untouched.** No
+trainer object lost a portrait and no other graphic moved.
+
+- **1026 checks, 0 failures** — load 23, menu 29, speaker **412** (up from 409),
+  geometry 515, launcher 47.
+- **Bite-proven**: putting `[25] = false` back fails 3 speaker checks, and the
+  sweep's non-trainer gap returns to 956.
+- Gates on the tree: `validate --strict` ok · `lint` ok · `gen3check --strict`
+  ok.
+
 ## 1.1.0 — portraits that follow the game, not a guess
 
 The first release since 1.0.0, and it folds in every fix cut locally in between

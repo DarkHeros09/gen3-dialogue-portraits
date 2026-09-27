@@ -3031,5 +3031,35 @@ function XF.alternatingSceneTests()
 end
 XF.alternatingSceneTests()
 
+-- ------- 20. three windows the default missed
+--
+-- The crop table's own rule, stated in art/crops.lua against pic 66: x is the
+-- FACE's centre minus 16, y the artwork's first row minus three rows of
+-- headroom (clamped at 0).  These three are pictures whose head sits where the
+-- default {16,3,32} does not look, so it cut the face or spent the window on
+-- empty art.  Measured from the .rgba dumps by .probe/dp3_measure.py.
+function XF.cropWindowTests()
+  io.write("-- three more crop windows\n")
+  local function rect(key, gfx)
+    local r = X.rectFor("trainers", key, { gfx = gfx })
+    return r and ("%d,%d,%d"):format(r.x, r.y, r.size) or nil
+  end
+
+  -- BIKER: head blob x 15-31 (centre 23), first art row 2 -> {23-16, 2-3 clamped}
+  eq(rect("91", 53), "7,0,32", "the Biker's window is centred on his face")
+  -- POKéMON BREEDER: head x 24-42 (centre 33), art from row 15 -> {17, 12}
+  eq(rect("141", 28), "17,12,32", "the Breeder's starts at his own artwork")
+  -- RUIN MANIAC: head x 23-42 (centre 33), art from row 12 -> {17, 9}
+  eq(rect("145", 31), "17,9,32", "and the Ruin Maniac's three rows higher")
+
+  -- ...and nothing else in the table moved.
+  eq(rect("144", 28), "16,3,32", "the Aroma Lady keeps the default window")
+  -- LADY (picture 146), which is Lady Selphy's own picture: her hat's crown is
+  -- the first opaque row, so the default's y of 3 takes the top of it off.
+  eq(rect("146", 28), "16,0,32", "and the LADY's sits on the top of her hat")
+  eq(rect("66", 29), "10,9,32", "and the PokéFan keeps the window it had")
+end
+XF.cropWindowTests()
+
 io.write(("\n%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

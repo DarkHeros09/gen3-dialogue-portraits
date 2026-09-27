@@ -419,6 +419,41 @@ return {
     -- hat and the face, centred, at 44% -- and the net is what it crops, which
     -- a bust is entitled to do.
     ["66"] = { 10, 9, 32 },
+
+    -- ------- three more the default window misses
+    --
+    -- Same rule as pic 66 above, applied to the .rgba dumps: x is the face's
+    -- centre minus 16, y the artwork's first row minus three rows of headroom
+    -- (clamped at 0).  Each is a picture whose head sits somewhere the default
+    -- {16,3,32} does not look, so the default cut the face or spent the window
+    -- on empty art.
+
+    -- BIKER (class 66 -> picture 91).  A rider hunched over a motorbike, drawn
+    -- small and high in the frame: the head blob is x 15-31, centre 23, on rows
+    -- 2-16, and the bike owns everything below and to the right.  The default
+    -- begins one pixel to the RIGHT of the head, so it takes half the face off
+    -- and spends the rest of the window on the fuel tank.
+    ["91"] = { 7, 0, 32 },
+
+    -- POKéMON BREEDER (classes 45 and 101 -> picture 141).  The artwork does
+    -- not start until row 15, so the default spent its top third on nothing and
+    -- cut the figure off at the chest.  Head blob x 24-42, centre 33.
+    ["141"] = { 17, 12, 32 },
+
+    -- RUIN MANIAC (classes 5 and 104 -> picture 145).  The same shape as the
+    -- Breeder, three rows higher: artwork from row 12, head blob x 23-42,
+    -- centre 33.
+    ["145"] = { 17, 9, 32 },
+
+    -- LADY (classes 11 and 105 -> picture 146), which is Lady Selphy's own
+    -- picture: the cart's table names her (trainer 606, class 105, picture 146)
+    -- and her boxes all say "SELPHY: ", so the name route already gives her
+    -- this art.  What the art needed was the window.  Its head starts at row 0
+    -- -- the hat's crown is the first opaque row -- and the default's y of 3
+    -- therefore takes the top of the hat off.  Face centre 32, first art row 0,
+    -- so the rule's answer is {16, 0, 32}.  The same picture is worn by the two
+    -- Ladies standing outside on the island, who want the same window.
+    ["146"] = { 16, 0, 32 },
   },
 
   -- Per-species overrides, keyed by the species key, lowercased and stripped of

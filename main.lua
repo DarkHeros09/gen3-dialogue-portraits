@@ -527,14 +527,32 @@ local GFX_ART = {
   -- People the cart never drew a battle bust of.  Each of these was wearing
   -- somebody else's face: a Fat Man the Fisherman's and a female Worker the
   -- Scientist's.  No portrait is this mod's answer.
-  -- The Man is the same complaint one step milder: he shares SPRITE_POKEFAN_M
-  -- with the Hiker, so the sprite route handed him the PokéFan's face -- and
-  -- picture 32 is a BOY, so a grown man was wearing a child's.  Declining is
-  -- the same answer.
-  [25] = false,          -- MAN
   [27] = false,          -- FAT MAN
   [48] = false,          -- WORKER (F)
   [76] = false,          -- DAISY, the rival's sister -- see the note below
+
+  -- MAN (25) was on that list and is not any more, for the same reason the
+  -- Balding Man's decline was dropped and CELIO's after it: a decline is right
+  -- for a graphic's anonymous wearers and wrong for the one CLASS the cart put
+  -- on it.
+  --
+  -- Measured over the whole game by .probe/dp3_classgfx.lua: graphic 25 is worn
+  -- by 9 trainer objects -- six TAMERs (class 78) and three YOUNG COUPLEs
+  -- (class 94) -- and by 20 ordinary men.  All nine trainers already had their
+  -- own picture through the trainer-id route, and art/map_art.lua already says
+  -- 103 for this graphic on each of the four maps a Tamer stands on (Viridian
+  -- Gym, Fuchsia Gym, Victory Road 2F, Sevault Canyon).  So the sprite answered
+  -- on those maps and nowhere else -- the reported "not all Tamer sprites have
+  -- associated portraits" -- and the majority of the classes that wear it is
+  -- the TAMER.
+  --
+  -- 103 is the Tamer's bust: a man in a man's clothes, whip raised
+  -- (.probe/dp3_dump_pics.lua dumps it).  That is a plausible face for the
+  -- twenty men, and it is exactly what the map route already gives the nine
+  -- trainers on the four maps above.  The SPRITE route's own answer is still
+  -- refused -- it would hand them the PokéFan's picture 66, a BOY with a net -- because
+  -- this entry outranks it.
+  [25] = 103,            -- MAN -> the TAMER, the majority class wearing it
 
   -- CELIO (89) used to be in that list, and keeping it there was the same
   -- mistake the Balding Man's was (see the note below): a decline that is right
@@ -695,6 +713,46 @@ local NAME_ART = {
   -- The value is the pack name for the bust his graphic maps to, so the picture
   -- is resolved the same way every other name is (see GFX_ART's note on 89).
   CELIO         = "SUPER NERD",
+  -- BUTLER is the cart's one capitalised speaker label (see nameFromText), and
+  -- it is the only one of the four that is a person.  The butler of Resort
+  -- Gorgeous has no class of his own -- his script is a plain loadword/callstd,
+  -- with no trainerbattle for the id route -- so his own object already answers
+  -- through the graphic, and the graphic is OBJ_EVENT_GFX_GENTLEMAN (61).  The
+  -- value names the class the cart itself draws him as, so the label and the
+  -- object agree: 123 either way, instead of the label-less boxes falling to
+  -- whichever object the scene moved last.
+  BUTLER        = "GENTLEMAN",
+}
+
+-- A (map, graphic) override for a named character the GENERATED per-map table
+-- cannot see.
+--
+-- art/map_art.lua is built from TRAINER objects (see the emitter,
+-- .probe/dp3_emit_map_art.lua), so a map whose only speaker of a graphic is a
+-- NON-trainer gets no entry for it -- and the graphic's own table then answers,
+-- which for a shared graphic is its majority class.  Lady Selphy is the case
+-- that matters: she wears OBJ_EVENT_GFX_WOMAN_2 (28), the graphic the LADY,
+-- AROMA LADY and POKéMON BREEDER classes all share, so GFX_ART[28] is the AROMA
+-- LADY's 144.  Her Resort Gorgeous House has no trainers at all, and neither
+-- does Lost Cave Room 10, so both maps fell through to that.
+--
+-- What it looked like: the box that opens "I wish to see a POKéMON."
+-- (g3:08171efe) carries no name and moves nobody, so it is resolved from her own
+-- object -- 144, the Aroma Lady -- while every box of hers that DOES say
+-- "SELPHY: " resolves 146 through the name route.  She changed face in the
+-- middle of one conversation, and the Lost Cave double of her never had the
+-- right one at all.  The outdoor Resort Gorgeous already says 146 for this
+-- graphic, through the generated table, because two LADIES do stand there as
+-- trainers; this table is that same answer for the two maps it cannot reach.
+--
+-- It is asked BEFORE MAP_ART and before GFX_ART, and it is deliberately
+-- hand-written: the generated table must stay generated.
+local PLACE_ART = {
+  -- Lady Selphy's house on Five Island, and the Lost Cave room she also appears
+  -- in.  Graphic 28 there is her, and she is a LADY (classes 11 and 105), whose
+  -- own picture is 146.
+  ["FR_FIVE_ISLAND_RESORT_GORGEOUS_HOUSE"] = { [28] = 146 },
+  ["FR_FIVE_ISLAND_LOST_CAVE_ROOM10"]      = { [28] = 146 },
 }
 
 -- Three people the cart DREW but never gave a battle class -- so the class and
@@ -1617,6 +1675,24 @@ return function(mod)
       if byName then return byName end
     end
 
+    -- 2b. a name the mod itself files, for a person the pack does not know.
+    --     This runs HERE, with the pack's name route, and not at the end where
+    --     it used to: a name the TEXT used is the one fact about who is
+    --     speaking that the script cannot get wrong, and everything below is a
+    --     guess from a graphic, which is a uniform and not a person.  Leaving it
+    --     at the tail let the graphic route answer first, and that is the
+    --     butler's bug -- see NAME_ART's BUTLER note.
+    --
+    --     It is deliberately NOT gated on gfxDeclines: that guard exists for a
+    --     name the PACK knows, which can mean a different person (see the ERIK
+    --     note above).  An entry here is this mod's own statement about a named
+    --     character, which is exactly what a decline must not be able to
+    --     overrule.
+    do
+      local byTextName = viaMapping(speaker.name and NAME_ART[speaker.name:upper()])
+      if byTextName then return byTextName end
+    end
+
     -- 3. the rival, recognised by the name the player gave him.  Only reached
     --    when the name route above could not answer -- which for the rival is
     --    every time, since the pack has no row called what the player typed.
@@ -1700,8 +1776,14 @@ return function(mod)
     --     the world has its own art and the trainers around it say nothing
     --     about it.
     if speaker.mapId and speaker.gfx and not speaker.species then
-      local here = MAP_ART[speaker.mapId]
-      local pic = type(here) == "table" and here[speaker.gfx] or nil
+      -- The hand-written override first: it exists for exactly the maps the
+      -- generated table cannot reach (see PLACE_ART).
+      local place = PLACE_ART[speaker.mapId]
+      local pic = type(place) == "table" and place[speaker.gfx] or nil
+      if type(pic) ~= "number" then
+        local here = MAP_ART[speaker.mapId]
+        pic = type(here) == "table" and here[speaker.gfx] or nil
+      end
       if type(pic) == "number" then
         local art = picArt(pic)
         if art then return art end
@@ -1744,10 +1826,6 @@ return function(mod)
       local entry = viaMapping(speaker.sprite and SPRITE_ART[speaker.sprite])
       if entry then return entry end
     end
-
-    -- A name the TEXT used that is not a trainer or a species is still a name.
-    local byTextName = viaMapping(speaker.name and NAME_ART[speaker.name:upper()])
-    if byTextName then return byTextName end
 
     -- 8. a talking Pokemon.  `speaker.species` is already set for a creature
     --    the text named and for one whose graphics id says so; the fallback
@@ -1803,6 +1881,25 @@ return function(mod)
     -- _F/_M and strips the punctuation -- one implementation, in the place that
     -- also has to answer for a host key like "nidoranf".
     local name = head:match("^([A-Z][A-Z0-9%._%-'♀♂ ]*):")
+    if not name then
+      -- The cart has exactly ONE other speaker-label shape: a single
+      -- capitalised word, "Butler: ".  Measured over every dialogue box in the
+      -- game (.probe/dp3_labels.lua), there are only four labels of that shape
+      -- -- Butler x5, Diary x4, Hint x1, Name x7 -- and only the first is a
+      -- person.  The other three are the Pokemon Mansion's diaries and two sign
+      -- shapes; they resolve to nothing through NAME_ART and the pack, so they
+      -- are left exactly as they were.
+      --
+      -- It matters because a box that names nobody falls to the OBJECT route,
+      -- and in a scene that route names the object the script moved most
+      -- recently -- which is not necessarily the speaker.  The Resort Gorgeous
+      -- House scene (g3:08171f34) moves SELPHY for her own line and then shows
+      -- two of the butler's; those two boxes carried HER object (gfx 28) and
+      -- wore whatever its graphic resolves to, while his third box carried his
+      -- own (gfx 61) and wore the Gentleman's -- so the butler changed face
+      -- mid-scene, and the face he wore on the other two was not his.
+      name = head:match("^([A-Z][a-z][%a]*):")
+    end
     if not name then return nil end
     -- The class admits a space, so a name can be caught with space before the
     -- colon; trim it, or the token stops matching the pack it is looked up in.
@@ -3432,6 +3529,7 @@ return function(mod)
   -- every map held the same value), and that `speakerFor` really stamps the map
   -- it was standing on when the box was drawn.
   mod.exports.MAP_ART = MAP_ART
+  mod.exports.PLACE_ART = PLACE_ART
   mod.exports.mapIdNow = mapIdNow
   -- The cart's Fame Checker portraits, exported so the suite can assert the
   -- three names the reporter asks for map to the engine's own person indices

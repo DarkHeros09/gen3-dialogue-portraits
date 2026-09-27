@@ -663,18 +663,30 @@ table:
 
 The `false` entries are graphics that were wearing somebody else's face: the
 Fat Man the Fisherman's (`:18` sends him to `SPRITE_FISHER`), a female Worker the
-Scientist's (`:29` → `SPRITE_SCIENTIST`), the Man the PokéFan's (`:25` →
-`SPRITE_POKEFAN_M`, whose picture is a boy), and — added in 1.9.4 — **Daisy
-Oak** (`:76`, who was wearing a Five Island Painter's face through the name
-route; see *A name in a box is not a person*).
+Scientist's (`:29` → `SPRITE_SCIENTIST`), and — added in 1.9.4 — **Daisy Oak**
+(`:76`, who was wearing a Five Island Painter's face through the name route; see
+*A name in a box is not a person*).
 
-Celio (`:89` → `SPRITE_SUPER_NERD`) was on that list too, and **1.0.3 removed
-him**, for the same reason 1.9.4 removed the Balding Man: the reasoning was
-right for a graphic worn by anonymous townsfolk and wrong for one worn by a
-named person the cart drew. `OBJ_EVENT_GFX_CELIO` is worn by exactly **one**
-object in the whole game — Celio, on One Island's Net Center floor — and the
-cart's own bust for that graphic is picture 89. Declining it left a named story
-character with no face on any of his boxes; see *Celio* below.
+Two more have left the list since, each for the same reason: the entry was right
+for a graphic's anonymous wearers and wrong for the **class** the cart put on it.
+
+- **Celio** (`:89` → `SPRITE_SUPER_NERD`) — **1.0.3**. `OBJ_EVENT_GFX_CELIO` is
+  worn by exactly **one** object in the whole game — Celio, on One Island's Net
+  Center floor — and the cart's own bust for that graphic is picture 89.
+  Declining it left a named story character with no face on any of his boxes; see
+  *Celio* below.
+- **The Man** (`:25` → `SPRITE_POKEFAN_M`) — **1.1.1**. The graphic carries 9
+  trainer objects — six **TAMERs** (class 78) and three **YOUNG COUPLEs** (94) —
+  and 20 ordinary men (measured by `.probe/dp3_classgfx.lua`). All nine trainers
+  already had their own pictures through the trainer-id route, and
+  `art/map_art.lua` already answered **103** for this graphic on each of the four
+  maps a Tamer stands on, so the *same* sprite answered on those maps and nowhere
+  else — the reported "not all Tamer sprites have associated portraits". Picture
+  103 is the Tamer: a man in a man's clothes, whip raised, which is a plausible
+  face for the twenty men and exactly what the map route already gave the nine
+  trainers. The **sprite** route's own answer is still refused — it would hand
+  them the PokéFan's picture 66, a boy with a net — because the graphic's entry
+  outranks it.
 
 The Balding Man was on that list too, from 1.9.1, on the reasoning that he shares
 `SPRITE_POKEFAN_M` with the Man. **That reasoning was wrong**, and 1.9.4 is where
@@ -1619,7 +1631,7 @@ Without those two, "the group is present" would be satisfied by an engine that
 always had one. Verified to bite: making `modLoaded` always answer false turns it
 into 10 failures, every one of them a row or group assertion.
 
-**`dp3_speaker_test.lua` — 409 checks.** Who is talking and which picture is
+**`dp3_speaker_test.lua` — 432 checks.** Who is talking and which picture is
 theirs: the text's own name, the press's object, a class being **exchanged** for
 its picture rather than used as one, a name resolving to a picture exactly, an
 ambiguous name declining, an ordinary townsfolk sprite resolving through its
@@ -1739,7 +1751,7 @@ answer resolves to that map's picture, the id still outranks it where the two
 disagree, a species is never asked about the map, and the reported three classes
 resolve to 89 / 102 / 144 on their own maps.
 
-**`dp3_geometry_test.lua` — 515 checks.** The layouts, measured against the
+**`dp3_geometry_test.lua` — 521 checks.** The layouts, measured against the
 **real** engine modules. The trick that makes it measurable: the `FrlgFont.draw`
 spy is installed *before* the mod loads, so the mod captures the spy as *its*
 vanilla and the spy therefore sees the arguments the mod has already rewritten.

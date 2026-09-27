@@ -215,7 +215,12 @@ package.loaded["src.core.game3.scripting.trainers"] = {
                      -- it (the Rocker) next to what each of the three really is.
                      [76] = "ROCKER", [77] = "JUGGLER", [79] = "BIRD KEEPER",
                      -- the duplicates: the Hoenn class first, Kanto second
-                     [59] = "LASS", [81] = "RIVAL", [89] = "RIVAL" },
+                     [59] = "LASS", [81] = "RIVAL", [89] = "RIVAL",
+                     -- GENTLEMAN, which is the class the cart draws the Resort
+                     -- Gorgeous butler as (his graphic is
+                     -- OBJ_EVENT_GFX_GENTLEMAN), so section 21 can show that
+                     -- his label resolves through it.
+                     [22] = "GENTLEMAN" },
       trainers = {
         -- Every row carries its OWN `id`, because the cart's do: the real table
         -- is a plain 1-based array whose rows repeat their trainer id, so
@@ -236,6 +241,9 @@ package.loaded["src.core.game3.scripting.trainers"] = {
         -- A second one, under a class with no other row, so the rule under test
         -- is "picture 0 is the null picture" rather than "class 0 is special".
         [9] = { id = 9,  class = 8,  pic = 0,   name = "" },
+        -- A GENTLEMAN, for section 21: the butler's picture is the cart's own
+        -- Gentleman bust (123), reached through his label.
+        [900] = { id = 900, class = 22, pic = 123, name = "WILTON" },
         [1] = { id = 1,  class = 17, pic = 17,  name = "BROCK" },
         [2] = { id = 2,  class = 43, pic = 106, name = "TERRY" },
         [3] = { id = 3,  class = 43, pic = 106, name = "TERRY" },
@@ -879,23 +887,39 @@ ok(oldMan and oldWoman and oldMan.image ~= oldWoman.image,
 
 -- The Man and the Balding Man.  Both share SPRITE_POKEFAN_M with the Hiker, and
 -- the Hiker was fixed by naming his picture; before that the other two wore the
--- PokéFan's face -- and picture 32 is a BOY, so a grown man and a bald one were
--- wearing a child's.
+-- PokéFan's face -- picture 66, a boy with a net, so a grown man and a bald one
+-- were wearing a child's.
 --
--- 1.9.4 separates them, because they are not the same case.  The Man really is
--- a person the cart drew no bust of, so he declines.  The Balding Man is not:
--- OBJ_EVENT_GFX_BALDING_MAN is the cart's own overworld sprite for the ENGINEER
--- class -- all three Engineers wear it and nothing else does -- so picture 93,
--- the Engineer, is the cart's bust of this exact person, and the 28 ordinary
--- balding men are the same person the Engineers are.
-eq(X.GFX_ART[25], false, "graphic 25 is the Man, whom the cart never drew")
-eq(X.GFX_ART[30], 93, "but graphic 30 the Balding Man is the Engineer")
-eq(X.artFor({ sprite = "SPRITE_POKEFAN_M", gfx = 25 }), nil,
-   "so a Man declines rather than wearing the PokéFan's face")
+-- Both are now answered by the cart's own bust for the CLASS that wears the
+-- graphic.  The Balding Man (30) is the ENGINEER: all three Engineers wear it
+-- and nothing else does, so picture 93 is the cart's bust of this exact person,
+-- and the 28 ordinary balding men are the same person the Engineers are.
+--
+-- The Man (25) is the TAMER, by the majority rule the map table already uses.
+-- Measured by .probe/dp3_classgfx.lua: graphic 25 carries 9 trainer objects --
+-- six TAMERs (class 78) and three YOUNG COUPLEs (94) -- and 20 ordinary men, and
+-- art/map_art.lua already answers 103 for it on each of the four maps a Tamer
+-- stands on.  Declining it made the SAME sprite answer on those four maps and
+-- nowhere else, which is the reported "not all Tamer sprites have associated
+-- portraits".  Picture 103 is the Tamer -- a man in a man's clothes, whip
+-- raised -- so it is a plausible face for the twenty men too, and it is exactly
+-- what the map route already gives the nine trainers.
+eq(X.GFX_ART[25], 103, "graphic 25 is the Man, and the class the cart put on it is the Tamer")
+eq(X.GFX_ART[30], 93, "and graphic 30 the Balding Man is the Engineer")
 asked.trainer = {}
+local man = X.artFor({ sprite = "SPRITE_POKEFAN_M", gfx = 25 })
+eq(man and man.pic, 103, "so a Man gets the Tamer's face, not the PokéFan's")
+eq(asked.trainer[#asked.trainer], 103, "and it is the cart's own TAMER picture")
 local balding = X.artFor({ sprite = "SPRITE_POKEFAN_M", gfx = 30 })
 ok(balding ~= nil, "and a Balding Man gets a face after all")
 eq(asked.trainer[#asked.trainer], 93, "the cart's own Engineer, which is him")
+
+-- ...and the sprite route's own answer is still refused, which is what the
+-- decline was for in the first place: the graphic's entry outranks it.
+eq(X.artFor({ sprite = "SPRITE_POKEFAN_M" }).pic, 66,
+   "the PokéFan sprite alone still answers with its own picture")
+eq(X.artFor({ sprite = "SPRITE_POKEFAN_M", gfx = 25 }).pic, 103,
+   "but on graphic 25 the graphic's own answer wins, so no boy's face")
 
 -- The end of the chain, and the shape the player actually meets: a Swimmer's
 -- map object.  He is not a battle object, so he carries class 0 and the host
@@ -1117,9 +1141,11 @@ asked.trainer = {}
 local unknown = X.artFor({ gfx = 32, sprite = "SPRITE_GRAMPS",
                            scriptKey = "g3:ffffffff" })
 eq(asked.trainer[#asked.trainer], 97, "an unknown script key leaves the graphics route alone")
+-- Graphic 25 answers for itself now (see the Man note above), and an unknown key
+-- does not change that: the answer is the graphic's own, not the sprite's guess.
 eq(X.artFor({ gfx = 25, sprite = "SPRITE_POKEFAN_M",
-              scriptKey = "g3:ffffffff" }), nil,
-   "and does not give a Man a face the cart never drew")
+              scriptKey = "g3:ffffffff" }).pic, 103,
+   "and an unknown key still leaves graphic 25 its own answer")
 
 -- The whole chain, in the shape the game hands it over: a map object, pressed,
 -- with the script key on the object rather than passed in by hand.
@@ -2279,6 +2305,90 @@ eq(billLine and billLine.gfx, 73, "Bill's line resolves his own object")
 eq(billLine and billLine.name, nil, "and names nobody in the text")
 eq(X.artFor(billLine) and X.artFor(billLine).pic, 313,
   "so it draws his Fame Checker portrait (gfx 73 -> person 13)")
+
+-- ------- 20. a name beats the graphic it wears
+--
+-- Five Island's Resort Gorgeous: Lady Selphy wears OBJ_EVENT_GFX_WOMAN_2 (28),
+-- the graphic the LADY, AROMA LADY and POKéMON BREEDER classes all share, and
+-- the majority class on it is the AROMA LADY -- so GFX_ART[28] is 144 and her
+-- HOUSE map has no MAP_ART entry to outrank it.  The cart's own trainer table
+-- names her (id 606, class 105, picture 146) and every one of her boxes says
+-- "SELPHY: ", so the name route is what answers; her script has no
+-- trainerbattle at its head for the id route to use.  Measured by
+-- .probe/dp3_classgfx.lua: graphic 28 carries AROMA LADY x4, BREEDER x3, LADY x2.
+io.write("-- Lady Selphy\n")
+eq(X.GFX_ART[28], 144, "graphic 28 still answers the Aroma Lady, its majority class")
+eq(X.artFor({ gfx = 28 }).pic, 144, "so a bare graphic-28 box draws her picture")
+eq(X.picForName("SELPHY"), 146, "but SELPHY resolves through the LADY class")
+eq(X.artFor({ name = "SELPHY", fromText = true, gfx = 28,
+              mapId = "FR_FIVE_ISLAND_RESORT_GORGEOUS_HOUSE" }).pic, 146,
+  "so a Selphy box draws the LADY's picture 146, not 144")
+-- The scene's other speaker is the butler (gfx 61).  Section 21 is where his
+-- label is tested; here it is only worth pinning that his OWN object still
+-- answers through the graphic, and that naming him agrees with it.
+eq(X.artFor({ name = "BUTLER", fromText = true, gfx = 61 }).pic, 123,
+  "and the Butler's own object answers the same 123")
+
+-- ------- 21. the cart's one capitalised speaker label
+--
+-- "Butler: " is the ONLY capitalised-word label in the game that is a person.
+-- Measured over every dialogue box by .probe/dp3_labels.lua: Butler x5, Diary
+-- x4, Hint x1, Name x7 -- and the other three are the Pokemon Mansion's diaries
+-- and two sign shapes, which resolve to nothing and are left exactly as they
+-- were.
+--
+-- It matters because a box the name rule does not recognise falls to the OBJECT
+-- route, and in a scene that route names the object the script moved most
+-- recently -- which is not necessarily the speaker.  The Resort Gorgeous House
+-- scene moves SELPHY for her own line and then shows two of the butler's, so
+-- those two boxes carried HER object (gfx 28) and wore the Aroma Lady's 144,
+-- while his third carried his own (gfx 61) and wore the Gentleman's 123.
+io.write("-- the cart's one capitalised speaker label\n")
+eq(X.nameFromText("Butler: Yes, my lady."), "Butler",
+  "a capitalised label is read as a speaker")
+eq(X.nameFromText("Diary: July 5 Guyana, South America"), "Diary",
+  "and so is a diary, which resolves to nothing")
+eq(X.nameFromText("SELPHY: Oh, hello, there."), "SELPHY",
+  "the all-caps rule is untouched")
+eq(X.nameFromText("Oh, hello, there."), nil, "and prose is still not a name")
+eq(X.NAME_ART["BUTLER"], "GENTLEMAN",
+  "BUTLER is filed against the class the cart itself draws him as")
+-- The ORDER is half the fix: NAME_ART runs with the pack's name route, before
+-- the graphic.  The butler shows it, because his graphic (28) answers the Aroma
+-- Lady's 144 and his entry answers the Gentleman's 123.
+eq(X.artFor({ name = "Butler", fromText = true, gfx = 28 }).pic, 123,
+  "so his boxes draw 123 even when the object they carry is somebody else's")
+eq(X.artFor({ name = "Butler", fromText = true, gfx = 61 }).pic, 123,
+  "and when the object is his own")
+eq(X.artFor({ name = "Diary", fromText = true, gfx = 28 }).pic, 144,
+  "while a diary label changes nothing at all")
+
+-- ------- 22. the maps the generated per-map table cannot reach
+--
+-- art/map_art.lua is built from TRAINER objects, so a map whose only speaker of
+-- a graphic is a non-trainer has no entry for it and the graphic's own table
+-- answers -- which for a shared graphic is its majority class.  Lady Selphy
+-- wears gfx 28, shared by LADY, AROMA LADY and POKéMON BREEDER, so GFX_ART[28]
+-- is the Aroma Lady's 144; her House and Lost Cave Room 10 have no trainers at
+-- all.  The box that opens "I wish to see a POKéMON." (g3:08171efe) carries no
+-- name and moves nobody, so it was resolved from her own object and drew 144,
+-- while every box of hers that says "SELPHY: " drew 146 -- one conversation,
+-- two faces.  PLACE_ART is that same 146 for the two maps the generated table
+-- cannot reach.
+io.write("-- the maps the generated table cannot reach\n")
+eq(X.GFX_ART[28], 144, "graphic 28 still answers the Aroma Lady, its majority class")
+eq(X.PLACE_ART["FR_FIVE_ISLAND_RESORT_GORGEOUS_HOUSE"][28], 146,
+  "but Selphy's house is filed as a LADY")
+eq(X.PLACE_ART["FR_FIVE_ISLAND_LOST_CAVE_ROOM10"][28], 146,
+  "and so is the Lost Cave room she also stands in")
+eq(X.artFor({ gfx = 28, mapId = "FR_FIVE_ISLAND_RESORT_GORGEOUS_HOUSE" }).pic, 146,
+  "so the wish box (no name, no actor) draws her, not the Aroma Lady")
+eq(X.artFor({ gfx = 28, mapId = "FR_FIVE_ISLAND_LOST_CAVE_ROOM10" }).pic, 146,
+  "and so does the Lost Cave one")
+eq(X.artFor({ gfx = 28, mapId = "FR_VIRIDIAN_CITY_SCHOOL" }).pic, 144,
+  "while a map that is not filed keeps the graphic's own answer")
+eq(X.artFor({ gfx = 28, mapId = "FR_FIVE_ISLAND_RESORT_GORGEOUS" }).pic, 146,
+  "and the outdoor map keeps the generated table's 146")
 
 io.write(("\n%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)
