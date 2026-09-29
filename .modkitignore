@@ -24,20 +24,24 @@ tools/dump_trainers.py
 tools/build_release.py
 tools/changelog_section.py
 
-# CHANGELOG.md, for now.
+# CHANGELOG.md and README.md, for now.
 #
-# Nothing reads this file out of an INSTALLED mod: the launcher's "What's New?"
-# renders the GitHub Release body, which the workflow extracts from the source
-# tree, not from the payload.  It is also the file a stale read-only copy in a
-# previous install blocks an update on --
+# Neither is read out of an INSTALLED mod: the launcher's "What's New?" renders
+# the GitHub Release body, which the workflow extracts from the source tree,
+# not from the payload, and nothing else in the engine opens either file.  They
+# stay in the source tree, so the release workflow still publishes CHANGELOG.md's
+# "## <version>" section as the body.
+#
+# CHANGELOG.md is also the file a stale read-only copy in a previous install
+# blocks an update on --
 #
 #   could not write CHANGELOG.md: ... (permission denied)
 #
 # -- because Windows cannot delete a read-only file, so the installer can
-# neither clear the old tree nor write the new file.  Leaving it out of the
-# payload lets an update step past that.  The file itself stays in the source
-# tree: the release workflow publishes its "## <version>" section as the body.
+# neither clear the old tree nor write the new file.  Keeping both out of the
+# payload lets an update step past a stale copy of either.
 CHANGELOG.md
+README.md
 
 # Player-supplied art.
 #
