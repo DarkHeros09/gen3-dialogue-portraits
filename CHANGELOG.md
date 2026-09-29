@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.2.2 — a payload an update cannot trip on
+
+The launcher could not update the mod. It stopped on
+
+> *could not write CHANGELOG.md: Could not open file
+> mods/gen3-dialogue-portraits/CHANGELOG.md (permission denied)*
+
+Windows cannot delete a read-only file, so a stale read-only copy of
+CHANGELOG.md left behind by a previous install made the installer unable to
+clear the old tree -- and therefore unable to write the new one. **Size was not
+involved**: the file is 192 KB and the engine's caps are 8 MB and up.
+
+**What changed**
+
+- **CHANGELOG.md and README.md are no longer in the shipped payload.** Nothing
+  reads either of them out of an *installed* mod: the launcher's "What's New?"
+  renders the GitHub Release **body**, which the release workflow extracts from
+  the source tree, and no engine code opens them. Both stay in the source tree,
+  so this release's notes below are still published as that body. The release
+  zip and the `.modpkg` go from 10 entries to **8**. `CustomArt/README.md` is
+  deliberately untouched -- that one is the player-facing documentation for
+  adding your own portraits.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites.
+- The failure was **reproduced, and the fix confirmed, under real LÖVE 11.5**:
+  `.probe/loveinstall/` drives the engine's own installer over the release zip.
+  With the installed CHANGELOG.md made read-only, an update returned
+  `could not write CHANGELOG.md ... (permission denied)`; with the file out of
+  the payload, the same update succeeds.
+- The engine was hardened for the same reason -- `CacheFs.remove`/`removeDir`
+  clear the Windows read-only attribute before deleting, so a stale read-only
+  file can no longer abort *any* mod's update.
+
 ## 1.2.1 — the scientist's own face, and the Pokemon a script moves
 
 Two reports, both of them a face decided by something less specific than the fact
