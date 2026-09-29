@@ -2390,5 +2390,65 @@ eq(X.artFor({ gfx = 28, mapId = "FR_VIRIDIAN_CITY_SCHOOL" }).pic, 144,
 eq(X.artFor({ gfx = 28, mapId = "FR_FIVE_ISLAND_RESORT_GORGEOUS" }).pic, 146,
   "and the outdoor map keeps the generated table's 146")
 
+do
+  -- ------- the Mt Moon scientist, and a scene that moves a Pokemon
+  --
+  -- Two reports, one file.
+  --
+  -- (1) Mt Moon's fossil-room Super Nerd is MIGUEL, trainer 170, class SUPER
+  -- NERD, cart picture 89.  He wears OBJ_EVENT_GFX_SCIENTIST (55) -- the lab
+  -- coat the host calls SPRITE_SCIENTIST and that 8 Super Nerds AND 14
+  -- Scientists share -- and his object's script wraps its trainerbattle in a
+  -- subroutine, so neither generated table carries him.  Without the map entry
+  -- he falls through to GFX_ART[55] and wears the SCIENTIST's 107.
+  io.write("-- the Mt Moon scientist, and a scene that moves a Pokemon\n")
+
+  eq(X.MAP_ART["FR_MT_MOON_B2F"] and X.MAP_ART["FR_MT_MOON_B2F"][55], 89,
+     "graphic 55 on Mt Moon B2F is the SUPER NERD's picture")
+  eq(X.artFor({ gfx = 55, sprite = "SPRITE_SCIENTIST",
+                mapId = "FR_MT_MOON_B2F" }).pic, 89,
+     "so the fossil-room object draws the Super Nerd")
+  eq(X.artFor({ gfx = 55, sprite = "SPRITE_SCIENTIST" }).pic, X.GFX_ART[55],
+     "while the graphic alone still answers the Scientist -- unchanged")
+  eq(X.MAP_ART["FR_SILPH_CO_2F"] and X.MAP_ART["FR_SILPH_CO_2F"][55], 107,
+     "and Silph Co. still says the Scientist")
+
+  -- (2) Cerulean City's LASS runs `applymovement localId=5` to walk the SLOWBRO
+  -- beside her and only then says her own lines.  The scene route names the
+  -- object a script MOVES, so it named the Slowbro for every one of her boxes
+  -- and she wore its face.  A species is not a person, so the press wins.
+  local SLOWBRO = { localId = 5, graphicsId = 129, sprite = "SPRITE_YOUNGSTER",
+                    trainerType = 0, scriptKey = "g3:081667dd",
+                    cellX = 32, cellY = 29 }
+  local LASS = { localId = 6, graphicsId = 22, sprite = "SPRITE_LASS",
+                 trainerType = 0, scriptKey = "g3:0816674f",
+                 cellX = 33, cellY = 29 }
+  local savedSpace = package.loaded["src.core.game3.scripting.space"]
+  local savedObjects = package.loaded["src.core.game3.objects"]
+  package.loaded["src.core.game3.objects"] = {
+    find = function(lid) return ({ [5] = SLOWBRO, [6] = LASS })[tonumber(lid)] end,
+  }
+  package.loaded["src.core.game3.scripting.space"] = { vm = {
+    isRunning = function() return true end,
+    scripts = { ["g3:0816674f"] = {
+      { op = "lock" },                        -- 1
+      { op = "applymovement", localId = 5 },  -- 2  the Slowbro -- NOT a speaker
+      { op = "message", ptr = 0 },            -- 3  her own line
+    } },
+    ctx = { pc = { listKey = "g3:0816674f", index = 3 }, stack = {} },
+    _scriptKey = "g3:0816674f",
+  } }
+
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, LASS)   -- the player talked to HER
+  local sp = X.speakerFor("Where did my SLOWBRO go?")
+  eq(sp and sp.gfx, 22, "a script that moves a Pokemon does not name the Pokemon")
+  eq(sp and sp.gfx ~= 129, true, "and certainly not the Slowbro's graphic")
+  ok(X.artFor(sp) ~= nil, "so her box still draws a portrait")
+
+  package.loaded["src.core.game3.scripting.space"] = savedSpace
+  package.loaded["src.core.game3.objects"] = savedObjects
+end
+
 io.write(("\n%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

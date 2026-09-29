@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.2.1 — the scientist's own face, and the Pokemon a script moves
+
+Two reports, both of them a face decided by something less specific than the fact
+in hand.
+
+**What changed**
+
+- **Mt Moon's fossil-room Super Nerd has his own face again.** He is MIGUEL,
+  trainer 170, class SUPER NERD, whose cart front picture is **89**. He wears
+  `OBJ_EVENT_GFX_SCIENTIST` (55) — the lab coat the host calls
+  `SPRITE_SCIENTIST` and that eight Super Nerds **and** fourteen Scientists share
+  — and his object's script CALLS its trainerbattle from a subroutine rather than
+  opening with one, so neither generated table carries him. The scene route
+  already named him for the fossil's own box, but his graphic then fell through
+  to the one-value-per-graphic table and he wore the **Scientist's 107**.
+  `art/map_art.lua` now answers for that map, so both the fossil line and his own
+  press draw 89.
+- **Cerulean City's Slowbro no longer wears itself on its trainer.** The LASS
+  beside the Slowbro runs `applymovement localId=5` — the Slowbro — and only then
+  says her own lines, and the scene route names "the object the script most
+  recently moved", so it named the Slowbro for every one of her boxes and she
+  wore its face. A species is not a person, so an actor that resolves to a
+  species no longer outranks the press.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** headless across the five suites, plus **12 checks
+  under real LÖVE 11.5** (`.probe/lovefix`, driving the real message box, the real
+  engine modules and the real ROM art).
+- Both fixes are **bite-proven**: reverting them fails the suite by 5 and the
+  LÖVE check by 4, with exactly the reported symptoms.
+- The guard's **blast radius is measured**: of 5025 decoded scripts, 7 rows stage
+  a Pokemon — the Slowbro, a Poliwrath in Celadon, a Nidoran♂ in Pewter and four
+  Clefairy rows in Bill's Sea Cottage. Nothing else changes.
+
 ## 1.2.0 — every sprite a name, every name the right face
 
 Everything since 1.1.0, in one release: four reports, all of them the same shape

@@ -4,6 +4,15 @@
 --   luajit .probe/dp3_emit_map_art.lua gen1recomp gen3-dialogue-portraits
 -- from the same ROM the engine extracts its map events from.
 --
+-- ONE LINE IS HAND-ADDED and regeneration drops it:
+--   ["FR_MT_MOON_B2F"][55] = 89 -- MIGUEL, trainer 170, the Super Nerd
+--   standing at Mt Moon's fossils.  His object's script CALLS its
+--   trainerbattle from a subroutine rather than opening with one, so the
+--   generator's head-of-script test cannot see him -- the same reason
+--   .probe/dp3_emit_trainer_ids.lua leaves his script key out of
+--   art/trainer_ids.lua.  Without this line he falls through to GFX_ART[55]
+--   and wears the Scientist's picture 107 instead of his own 89.
+--
 -- A graphic is a uniform, not a person.  OBJ_EVENT_GFX_ROCKER is worn by 28
 -- trainer objects -- 18 Bird Keepers, 9 Jugglers and 1 Rocker -- and those
 -- three classes wear three DIFFERENT pictures (104, 102, 101).  Sixteen of
@@ -25,7 +34,8 @@
 -- does not put a trainer under is ABSENT, and the caller falls through to
 -- GFX_ART, which is the answer for a graphic no trainer on this map wears.
 --
--- 91 maps, 228 (map, graphic) pairs.  11 of those pairs are AMBIGUOUS -- two
+-- 91 maps, 229 (map, graphic) pairs -- 228 from the generator plus the one
+-- hand-added line named above.  11 of those pairs are AMBIGUOUS -- two
 -- or more classes wearing the one graphic on the one map -- and each is
 -- decided by the majority; every one is listed below with its split.
 --
@@ -94,6 +104,9 @@ return {
   },
   ["FR_MT_MOON_B2F"] = {
     [49] = 109,      -- TEAM ROCKET -- 4 of this map's trainers
+    [55] = 89,       -- SUPER NERD -- 1 of this map's trainers (hand-added:
+                     --   MIGUEL, trainer 170, the Super Nerd at the fossils;
+                     --   see the header note on regeneration)
   },
   ["FR_PEWTER_CITY_GYM"] = {
     [39] = 86,       -- CAMPER -- 1 of this map's trainers

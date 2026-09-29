@@ -2030,7 +2030,20 @@ return function(mod)
     -- face.  When the script stages nobody -- the ordinary `lock`/`faceplayer`/
     -- box press -- sceneSpeaker answers nil and the press is used, which is
     -- every other conversation in the game.
+    -- A script that MOVES a Pokemon is not staging a speaker -- it is moving a
+    -- Pokemon.  Cerulean City's LASS runs `applymovement localId=5` to walk the
+    -- SLOWBRO beside her and only then says her own lines, so the scene route
+    -- named the Slowbro for every one of her boxes and she wore its face.  A
+    -- species is not a person -- the same rule the map route and the name route
+    -- already keep -- so an actor that resolves to a species does not outrank
+    -- the press.  With no press behind the box (a coord event, an ON_FRAME
+    -- scene) the actor still stands, which is what keeps a talking Pokemon in a
+    -- scene of its own.
     local eo = sceneSpeaker()
+    if type(eo) == "table" and type(pressSpeaker) == "table"
+        and speciesOfGfx(eo.graphicsId) then
+      eo = pressSpeaker
+    end
     if type(eo) ~= "table" then eo = pressSpeaker end
     local class, sprite, species, gfx, scriptKey, trainerId, mapId
     if type(eo) == "table" then
