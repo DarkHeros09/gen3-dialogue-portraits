@@ -708,13 +708,21 @@ local GFX_MON = {
   [112] = "POLIWRATH",  [113] = "CLEFAIRY",   [114] = "PIDGEOT",
   [115] = "JIGGLYPUFF", [116] = "PIDGEY",     [117] = "CHANSEY",
   [118] = "OMANYTE",    [119] = "KANGASKHAN", [120] = "PIKACHU",
-  -- The two Nidoran are spelled the way the CART spells them.  The engine's own
-  -- dex is keyed by the name in the cart's species table -- names[29] is
-  -- "NIDORAN♀" and names[32] is "NIDORAN♂" -- so "NIDORAN_F"/"NIDORAN_M" (the
-  -- engine's keyName FOLD of the same two names, which is what the crop table
-  -- wants) is not a spelling the dex answers to.  The female was already broken
-  -- this way and so was the male; both now use the cart's own form.
-  [121] = "PSYDUCK",    [122] = "NIDORAN♀",   [123] = "NIDORAN♂",
+  -- The two Nidoran are spelled with the ENGINE's fold, "NIDORAN_F"/"NIDORAN_M",
+  -- and NOT with the cart's own "NIDORAN♀"/"NIDORAN♂".
+  --
+  -- 1.2.6 changed these to the cart's spelling and it BROKE BOTH: the female had
+  -- drawn correctly for releases and stopped, and the male stopped with it --
+  -- the reported "nothing is drawn at all for either".  Reverted here, and the
+  -- female's record is the evidence: this is the spelling that works.
+  --
+  -- The two spellings are for two different jobs, and that is the trap.  The
+  -- CART's spelling is what the NAME token wants -- nameFromText's class accepts
+  -- the gender signs deliberately, and its own note records that a class which
+  -- stopped at the underscore left both Nidoran with no speaker at all.  THIS
+  -- table is not that: `speciesArt` hands its value to the content registry,
+  -- which is keyed by the fold, so the fold is what belongs here.
+  [121] = "PSYDUCK",    [122] = "NIDORAN_F",  [123] = "NIDORAN_M",
   [124] = "NIDORINO",   [125] = "MEOWTH",     [126] = "SEEL",
   [127] = "VOLTORB",    [128] = "SLOWPOKE",   [129] = "SLOWBRO",
   [130] = "MACHOP",     [131] = "WIGGLYTUFF", [132] = "DODUO",

@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.2.11 — the Nidoran spelling REVERTED: 1.2.6 broke both of them
+
+**This undoes 1.2.6's change to `GFX_MON`.** That release swapped the two Nidoran
+entries from the engine's fold (`"NIDORAN_F"`/`"NIDORAN_M"`) to the cart's own
+spelling (`"NIDORAN♀"`/`"NIDORAN♂"`), on the theory that the dex wanted the cart's
+form.  It does not, and **the swap broke BOTH**: the female had drawn correctly
+for releases and stopped, and the male stopped with it -- the reported "the
+Nidoran rendering is broken for both male and female variants, nothing is drawn
+at all".
+
+**What changed**
+
+- `GFX_MON[122]`/`[123]` are back to `"NIDORAN_F"`/`"NIDORAN_M"`.
+- The two spellings are for two DIFFERENT jobs, and that is the trap worth
+  recording: the cart's spelling is what the **name token** wants
+  (`nameFromText`'s class accepts the gender signs deliberately), while THIS
+  table feeds `speciesArt`, which hands the value to the content registry -- and
+  that is keyed by the fold.  The female's record settles which is which.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- `Pokemon.norm_key` folds either spelling to `NIDORANF`/`NIDORANM`, and
+  `frontPic` yields an image for both Nidoran once the index is built with that
+  fold (`NIDORAN_M` -> 32, `NIDORAN_F` -> 29) -- checked against the ROM.
+
 ## 1.2.10 — the Nidoran's line gets its portrait
 
 **What changed**
