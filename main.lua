@@ -3075,18 +3075,26 @@ return function(mod)
     if tonumber(c) ~= neutral then return true end
     -- A person whose box the CART draws in the neutral colour.  The rule above
     -- is right -- a neutral box is narration, a sign or an item box -- but it is
-    -- an inference from the colour, and Pewter Museum's fossil-room scientist is
-    -- the case where the inference is wrong: he is a person talking, and his
-    -- script (g3:0816a4ae) sets no text colour at all, so the engine hands the
-    -- box NEUTRAL and his face came off every line of his -- the report this
-    -- entry answers.  Explicit (map, graphic), not a rule: one NPC, so that no
+    -- an inference from the colour, and Pewter Museum's scientists are the case
+    -- where the inference is wrong.
+    --
+    -- TWO of the museum's three scientists open with `lock`/`faceplayer` and one
+    -- does not: lid 5's script is only `loadword / callstd / end` (g3:0816a49c),
+    -- so the engine never SELECTS an object for that box and hands it NEUTRAL,
+    -- which is why that one scientist of the three kept no face.  The press is
+    -- therefore not enough on its own -- the scene route is consulted too, and
+    -- the (map, graphic) pair is the fact that decides, not the route that found
+    -- it.  Explicit (map, graphic), not a rule: one map, one graphic, so no
     -- narration or item box anywhere else can be caught by it.
-    local eo = pressSpeaker
-    if type(eo) == "table" then
+    local function neutralButAPerson()
       local here = NEUTRAL_COLOUR_PORTRAIT[mapIdNow()]
-      if here and here[tonumber(eo.graphicsId)] then return true end
+      if not here then return false end
+      for _, eo in ipairs({ pressSpeaker, sceneSpeaker() }) do
+        if type(eo) == "table" and here[tonumber(eo.graphicsId)] then return true end
+      end
+      return false
     end
-    return false
+    return neutralButAPerson()
   end
 
   -- How wide the text is laid out, in pixels, for a given layout.

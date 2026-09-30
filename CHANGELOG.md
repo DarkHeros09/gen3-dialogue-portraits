@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.2.8 — the THIRD museum scientist, and why 1.2.7 only fixed two
+
+**The three museum scientists do not share a script shape.** Lid 3
+(`g3:0816a4ae`, the amber giver) and lid 6 (`g3:081c4bbe`, the move tutor) both
+open `lock / faceplayer`.  **Lid 5 (`g3:0816a49c`) is only
+`loadword / callstd / end`** -- no `lock`, so the engine never SELECTS an object
+for that box and hands it NEUTRAL, and 1.2.7's gate read only the PRESS record,
+which is not set the same way for a script that never locks.
+
+**What changed**
+
+- **The gate now consults the scene route as well as the press.** The
+  `(map, graphic)` pair is the fact that decides, not the route that found it, so
+  `coloursAllowPortrait` asks both `pressSpeaker` and `sceneSpeaker()` for
+  `["FR_PEWTER_CITY_MUSEUM_1F"][55]`.  All three scientists keep their faces, and
+  the list is still one map and one graphic, so no narration or item box anywhere
+  else can be caught by it.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+
+**Nidoran♂ -- what is actually known, and what is not**
+
+- 1.2.6 changed `GFX_MON[123]` to `"NIDORAN♂"`, the cart's own spelling
+  (`names[32]` is `"NIDORAN♂"`; `"NIDORAN_M"` is the engine's `keyName` fold,
+  which is what the CROP table wants but not what the dex answers to).
+- **It cannot be checked in this workspace.** The engine's dex needs its
+  extracted species pack; without it `[game3/pokemon] species pack missing` and
+  `Pokemon.speciesFromName` answers nil for EVERY name -- in the headless suite
+  and in the LÖVE harness alike.  A "broken dialogue box" is therefore something
+  only the game can show me: send the symptom (blank? wrong face? wrong text?)
+  and it can be chased.
+
 ## 1.2.7 — the museum scientist's face, and why it was missing
 
 **What changed**
