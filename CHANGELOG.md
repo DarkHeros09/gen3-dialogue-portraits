@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.19 — ROLLBACK of 1.2.18: the wrong scientist
+
+**Reverted.** 1.2.18 added `TEXT_NAMES_A_GFX` with
+`["Ssh! Listen, I need to share a secret"] = 55`, on the reading that this was the
+scientist the report meant.  It was not, so the whole table and its two readers are
+gone -- `main.lua` carries no `TEXT_NAMES_A_GFX` at all again, and nothing else was
+touched.  `TEXT_NAMES_A_SPECIES` and the Nidoran fix (1.2.17) are untouched and
+still working.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- `grep -c TEXT_NAMES_A_GFX main.lua` is 0.
+
 ## 1.2.18 — the Old Amber scientist's box: the TEXT picks him too
 
 **What changed**
