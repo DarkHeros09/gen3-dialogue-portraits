@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.3.0 — portraits for the people who were missing them
+
+This release is about faces. Several characters were talking to you with no
+portrait beside their text, or with somebody else's. They all have their own now,
+and a few portraits that were framed badly have been re-framed.
+
+**Characters who now show their own portrait**
+
+- **Pewter Museum's scientists** -- all three of them, including the one who gives
+  you the OLD AMBER, both before you take it and after.
+- **Pewter City's Nidoran** -- when the lady in the house tells him to sit, he
+  answers with his own face.
+- **The S.S. Anne's captain** -- including the last thing he says to you.
+- **Museum staff, Silph Co. workers, the S.S. Anne's kitchen hands, and the women
+  on the corridors** -- none of them had a portrait at all.
+- **Nidoran, male and female** -- both draw their picture again, properly framed.
+- **The Rocket Game Corner's coin seller** no longer wears a trainer's face. He is
+  a shopkeeper, so he has none -- and the same worker sprite keeps its portrait
+  everywhere else he appears.
+
+**Portraits that were showing the wrong person**
+
+- **"ERIK" in Fuchsia City** no longer shows a scientist's face.
+- **The old man in the museum** -- the one who remembers watching the moon landing
+  -- shows the right old man.
+- **The Team Rocket grunts** are framed properly.
+- **A Machop's line** about stomping the land flat no longer shows a Machop
+  portrait: that line is your own observation, not the Pokemon speaking.
+
+**A smaller download**
+
+- The changelog and readme are no longer packed into the installed mod folder.
+  Nothing reads them there, and leaving them out makes the download smaller and
+  updates more reliable.
+
 ## 1.2.20 — the Old Amber scientist, BOTH of his branches
 
 **What changed**
