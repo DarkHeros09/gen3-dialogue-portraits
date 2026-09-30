@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.2.5 — three of six: the captain's last line, the Game Corner counter, the Rocket window
+
+**What changed**
+
+- **The captain's last line has his face.** "Using CUT, you can chop down small
+  trees.  Why not try it with the trees around VERMILION CITY?" carries no
+  `CAPTAIN: ` label, so the name route could not reach it and the graphic was the
+  only thing left -- and graphic 63 had no entry.  `GFX_ART[63] = 81` is that
+  same captain for the unlabelled boxes.  (`NAME_ART.CAPTAIN` still answers the
+  labelled ones.)
+- **The Rocket Game Corner's coin seller has no portrait.** He wears graphic 47,
+  the male Worker, which 1.2.3 gave the Bird Keeper's bust -- right for the Silph
+  Co. and S.S. Anne workers who also wear it, wrong for the man behind the
+  counter, who is a shopkeeper and not a trainer.  `PLACE_ART` gained a `false`
+  form, consulted **before** `MAP_ART` and `GFX_ART`, so
+  `["FR_CELADON_CITY_GAME_CORNER"][47] = false` declines it **on that map only**.
+  Every other map keeps 46.
+- **The Team Rocket bust is framed.** Picture 109 had no window, so it took the
+  default `{16,3,32}`; measured it is `{11,1,32}`.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites.
+- Checked through the mod's own resolver: graphic 63 -> 81; graphic 47 on the
+  Game Corner -> nil while Silph Co.'s graphic 47 stays 46; graphic 49 -> 109.
+
+**Still open from the six — each needs a decision, not an edit**
+
+- **2. The Machop line.** `VermilionCity` obj 4 IS the Machop (`gfx 130`) and owns
+  both `"MACHOP: Guoh! Gogogoh!"` -- which names its speaker -- and `"A MACHOP is
+  stomping the land flat."`. The mod has no notion of a box the object *says*
+  versus a box *about* the object, and the obvious rule would strip the portrait
+  from every unnamed box of every Pokemon in the world.
+- **3. The museum scientist already resolves to 107** (and now has a window). No
+  graphic-55 object in the museum is faceless.
+- **4. Nidoran♂ still has none.** `GFX_MON[123] = "NIDORAN_M"`, but the dex lookup
+  does not resolve that spelling -- the cart spells it `NIDORAN♂`, and the fold
+  that turns one into the other is exactly the thing the mod notes it must not
+  carry a second copy of.  Needs the engine's own key, not a guess.
+
 ## 1.2.4 — framing for the pictures 1.2.3 linked, and ERIK's own face back
 
 Two of the five reports in this batch. The other three are described at the end,

@@ -659,6 +659,12 @@ local GFX_ART = {
   [31] = 33,             -- WOMAN_3 -> the POKéFAN
   [47] = 46,             -- WORKER_M -> the BIRD KEEPER
   [59] = 18,             -- CHEF -> the KINDLER
+  -- The S.S. Anne captain.  NAME_ART answers the boxes that say "CAPTAIN: ",
+  -- but his LAST line -- "Using CUT, you can chop down small trees.  Why not try
+  -- it with the trees around VERMILION CITY?" -- carries no label, so the name
+  -- route cannot reach it and the graphic is the only thing left.  Graphic 63 is
+  -- his alone, so this is that same 81 for the unlabelled boxes.
+  [63] = 81,             -- CAPTAIN -> the cart's captain bust
 }
 
 -- The cart's own Pokemon overworld graphics, which the host sprite vocabulary
@@ -781,6 +787,17 @@ local PLACE_ART = {
   -- own picture is 146.
   ["FR_FIVE_ISLAND_RESORT_GORGEOUS_HOUSE"] = { [28] = 146 },
   ["FR_FIVE_ISLAND_LOST_CAVE_ROOM10"]      = { [28] = 146 },
+
+  -- A `false` here DECLINES that graphic ON THAT MAP ONLY, and it is asked
+  -- before MAP_ART and GFX_ART, so it is the way to take a face off one person
+  -- without touching the same graphic everywhere else it stands.
+  --
+  -- The ROCKET GAME CORNER's coin seller is the case: he wears graphic 47, the
+  -- male Worker, which 1.2.3 gave the Bird Keeper's bust -- right for the
+  -- Silph Co. and S.S. Anne workers who also wear it, wrong for the man behind
+  -- the counter, who is a shopkeeper and not a trainer at all.  Only this map's
+  -- graphic 47 declines; every other map keeps 46.
+  ["FR_CELADON_CITY_GAME_CORNER"] = { [47] = false },
 }
 
 -- Three people the cart DREW but never gave a battle class -- so the class and
@@ -1817,6 +1834,9 @@ return function(mod)
       -- The hand-written override first: it exists for exactly the maps the
       -- generated table cannot reach (see PLACE_ART).
       local place = PLACE_ART[speaker.mapId]
+      -- A `false` entry is this map's own decline, and it has to be read off the
+      -- table before the `or nil` below swallows it.
+      if type(place) == "table" and place[speaker.gfx] == false then return nil end
       local pic = type(place) == "table" and place[speaker.gfx] or nil
       if type(pic) ~= "number" then
         local here = MAP_ART[speaker.mapId]

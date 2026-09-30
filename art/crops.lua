@@ -475,6 +475,7 @@ return {
     ["89"] = { 20, 0, 32 },   -- bbox (21,3)-(50,63);  head x 23-50
     ["97"] = { 17, 8, 32 },   -- bbox (7,11)-(50,62);  head x 23-44
     ["107"] = { 17, 1, 32 },  -- bbox (8,4)-(56,62);   head x 12-55
+    ["109"] = { 11, 1, 32 },  -- bbox (13,4)-(52,62);  head x 15-40 -- TEAM ROCKET
   },
 
   -- Per-species overrides, keyed by the species key, lowercased and stripped of
