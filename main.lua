@@ -3339,28 +3339,6 @@ return function(mod)
     -- portrait".
     forgetSpeaker()
     pressSpeaker = eo
-
-    -- ------- the Pewter City Nidoran's own line
-    --
-    -- PewterCity_House1 obj 3 is the Nidoran the woman tells to sit (graphic
-    -- 123).  Its object script g3:0816a736 is
-    -- `lock / faceplayer / call / applymovement / waitmovement / release` and it
-    -- opens NO box at all, so pressing it only walked it about -- there was
-    -- nothing to read.  A mod cannot put a message into the cart's own script,
-    -- so this hook is the only seam that sees the press, and it is the line the
-    -- report asked for.
-    --
-    -- AFTER `pressSpeaker = eo`, not before, and that is the whole point: the
-    -- box's speaker is resolved from that record, and a Nidoran's face comes
-    -- from its SPECIES, so showing the box before the record was set gave a line
-    -- with no portrait -- the first report of this line.  It is (map, graphic),
-    -- not "any Nidoran": FourIsland wears the same graphic twice, once as a
-    -- stuffed doll, and neither of those is this one.
-    if type(eo) == "table" and tonumber(eo.graphicsId) == 123
-        and mapIdNow() == "FR_PEWTER_CITY_HOUSE1" then
-      Message.show("NIDORAN\u{2642}: Bowbow !")
-    end
-
     return next(game, eo)
   end)
 

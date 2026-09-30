@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.2.14 — the Nidoran's line was the CART'S all along; my duplicate is gone
+
+**What changed**
+
+- **Removed the line 1.2.9 added.** The cart already has it. `PewterCity_House1`
+  obj 2 (the woman) and obj 3 (the Nidoran) BOTH `call` the same subroutine,
+  `g3:0816a749`, and that subroutine is:
+
+  ```
+  1 textcolor 3                     <- NEUTRAL
+  2 waitse
+  3 playmoncry 32                   <- the Nidoran's own cry
+  4 loadword "NIDORAN<male>: Bowbow!"
+  5 callstd 4
+  6 waitmoncry
+  7 call g3:081a6675
+  8 return
+  ```
+
+  So the line appears in **two** interactions -- the woman's and the Nidoran's --
+  and 1.2.9's hook line was a third, duplicate box.  It is gone; the cart's own
+  line is the one that shows.
+- **The portrait gate is why it had none**, and it is the cart's own doing: the
+  subroutine sets `textcolor 3`, the neutral grey/black, so `coloursAllowPortrait`
+  declined it.  1.2.12's exception (`["FR_PEWTER_CITY_HOUSE1"] = { [123] = true }`)
+  is what lets the Nidoran's box keep its face, and it stays.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+
 ## 1.2.13 — the male Nidoran's window starts on his artwork, not above it
 
 **What changed**
