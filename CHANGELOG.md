@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.13 — the male Nidoran's window starts on his artwork, not above it
+
+**What changed**
+
+- **`crops.pokemon.nidoranm`: `{ 13, 13, 32 }` -> `{ 13, 17, 32 }`.**  The window
+  began four rows ABOVE the artwork's first opaque row, so the top of the frame
+  was empty space and the artwork's bottom was still cut off -- the report is
+  exactly that: *"too much white space above NIDORAN♂, bottom clipped"*.  Starting
+  the window on row 17 fixes both at once: no white above, and the bottom loses
+  two rows instead of six.  The 32px frame cannot hold all 35 rows of the art, so
+  a portrait has to choose -- this chooses the head.
+- The female's window is untouched; it was reported working.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `art/crops.lua` loads.
+
 ## 1.2.12 — the Pewter Nidoran's box is neutral, so it gets the exception
 
 **What changed**

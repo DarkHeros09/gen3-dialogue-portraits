@@ -552,7 +552,14 @@ return {
     ["machop"]    = { 15, 7, 32 },    -- bbox (17,11)-(46,52)
     ["meowth"]    = { 16, 8, 32 },    -- bbox (13,12)-(51,51)
     ["nidoranf"]  = { 15, 12, 32 },   -- bbox (15,16)-(47,47)
-    ["nidoranm"]  = { 13, 13, 32 },   -- bbox (14,17)-(44,51)
+    -- The male's window started at 13, four rows ABOVE the artwork's first
+    -- opaque row (17), so it spent the top of the frame on empty space and still
+    -- cut the artwork's bottom (51) off.  The report is exactly that: "too much
+    -- white space above NIDORAN♂, bottom clipped".  Starting the window ON the
+    -- first row fixes both at once -- no white above, and the bottom loses two
+    -- rows instead of six.  The 32px frame cannot hold all 35 rows of the art,
+    -- so a portrait has to choose; this chooses the head.
+    ["nidoranm"]  = { 13, 17, 32 },   -- bbox (14,17)-(44,51); window 17-49
     ["nidorino"]  = { 11, 14, 32 },   -- bbox (10,9)-(53,55); head x 10-42 y 8-46, muzzle to y 45
     ["pidgeot"]   = { 0, 3, 32 },     -- bbox (1,2)-(62,62); head x 4-26 y 8-30, at the LEFT
     ["pidgey"]    = { 16, 10, 32 },   -- bbox (16,14)-(49,50)
