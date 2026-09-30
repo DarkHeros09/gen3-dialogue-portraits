@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.2.7 — the museum scientist's face, and why it was missing
+
+**What changed**
+
+- **The museum scientist keeps his portrait on every line.** He is Pewter Museum's
+  fossil-room man, the one who hands over the OLD AMBER -- *"Ssh! Listen, I need
+  to share a secret with someone…"* -- and he wears graphic 55, which already
+  answered 107.  He still showed nothing, because the mod gates a portrait on the
+  box's TEXT COLOUR (`coloursAllowPortrait`): FRLG draws a person in dark blue or
+  dark red and everything else -- narration, signs, item and letter boxes -- in
+  the neutral black/grey, so a neutral box is declined.  **His script
+  (g3:0816a4ae) sets no text colour at all**, so the engine handed every one of
+  his boxes NEUTRAL and the mod took his face off all of them.  A new
+  `NEUTRAL_COLOUR_PORTRAIT` list -- explicit (map, graphic), one entry -- says
+  that this speaker is a person talking, so his own boxes keep the portrait and
+  no narration or item box anywhere else can be caught by it.  It covers his
+  whole dialogue, the amber secret through the handover and every later line,
+  because the gate is asked per box.
+- **Nidoran♂** keeps 1.2.6's spelling fix (`GFX_MON[123] = "NIDORAN♂"`, the cart's
+  own form; `names[32]` is `"NIDORAN♂"`).  See the note below on verifying it.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- The colour gate is now covered by the mod's own resolver path for graphic 55 on
+  that map, and the suite still declines a neutral box anywhere else.
+
+**Not verifiable here, and worth a look in game**
+
+- **The species portraits cannot be resolved headlessly.** The engine's dex needs
+  its extracted species pack (`[game3/pokemon] species pack missing — re-import
+  FireRed ROM`), and without it `Pokemon.speciesFromName` answers nil for every
+  name and no species art can be built -- in the headless suite AND in the LÖVE
+  harness alike.  So Nidoran's spelling is verified against the cart's own name
+  table (`names[32] = "NIDORAN♂"`) rather than against a rendered picture.
+
 ## 1.2.6 — the Machop's narration line, and the Nidoran spelling
 
 **What changed**

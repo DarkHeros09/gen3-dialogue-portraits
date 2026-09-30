@@ -806,6 +806,20 @@ local PLACE_ART = {
   ["FR_CELADON_CITY_GAME_CORNER"] = { [47] = false },
 }
 
+-- People the CART draws in the neutral text colour, so `coloursAllowPortrait`'s
+-- inference -- a neutral box is narration, a sign or an item box -- is wrong for
+-- them.  Explicit (map, graphic), and it exists for exactly one NPC.
+--
+-- Pewter Museum's fossil-room scientist: he is the man who hands over the OLD
+-- AMBER ("Ssh! Listen, I need to share a secret…"), he wears graphic 55, and his
+-- script g3:0816a4ae sets no text colour, so every one of his boxes arrived
+-- NEUTRAL and the mod took his face off all of them -- the "no portrait"
+-- report.  He is a person talking, so he keeps his portrait, and nothing else in
+-- the game is touched: the list is a (map, graphic) pair, not a rule.
+local NEUTRAL_COLOUR_PORTRAIT = {
+  ["FR_PEWTER_CITY_MUSEUM_1F"] = { [55] = true },
+}
+
 -- Three people the cart DREW but never gave a battle class -- so the class and
 -- sprite routes above cannot answer for them, and the reporter asks for each by
 -- name: Bill, Daisy and Mr. Fuji.
@@ -3058,7 +3072,21 @@ return function(mod)
     if not ok or type(FrlgFont) ~= "table" then return true end
     local neutral = FrlgFont.NPC_TEXT_COLOR and FrlgFont.NPC_TEXT_COLOR.NEUTRAL
     if neutral == nil then neutral = 3 end
-    return tonumber(c) ~= neutral
+    if tonumber(c) ~= neutral then return true end
+    -- A person whose box the CART draws in the neutral colour.  The rule above
+    -- is right -- a neutral box is narration, a sign or an item box -- but it is
+    -- an inference from the colour, and Pewter Museum's fossil-room scientist is
+    -- the case where the inference is wrong: he is a person talking, and his
+    -- script (g3:0816a4ae) sets no text colour at all, so the engine hands the
+    -- box NEUTRAL and his face came off every line of his -- the report this
+    -- entry answers.  Explicit (map, graphic), not a rule: one NPC, so that no
+    -- narration or item box anywhere else can be caught by it.
+    local eo = pressSpeaker
+    if type(eo) == "table" then
+      local here = NEUTRAL_COLOUR_PORTRAIT[mapIdNow()]
+      if here and here[tonumber(eo.graphicsId)] then return true end
+    end
+    return false
   end
 
   -- How wide the text is laid out, in pixels, for a given layout.
