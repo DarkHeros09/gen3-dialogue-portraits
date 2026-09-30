@@ -783,7 +783,10 @@ eq(X.artFor({ sprite = "SPRITE_SCIENTIST", gfx = 48 }), nil,
 -- And the same rule for a graphic the host table simply does not list: the
 -- sprite the object carries is the host's own fallback, so it says nothing
 -- about who is talking and must not be used.
-eq(X.artFor({ sprite = "SPRITE_YOUNGSTER", gfx = 63 }), nil,
+--
+-- The example is graphic 91 (the Gym Guy), not 63: 1.2.5 gave the captain's
+-- graphic its own entry, so 63 no longer demonstrates an unmapped graphic.
+eq(X.artFor({ sprite = "SPRITE_YOUNGSTER", gfx = 91 }), nil,
    "a graphic the host does not map closes the sprite route rather than guessing")
 asked.trainer = {}
 -- Graphic 22 is the LASS, which GFX_ART does not touch, so this is the sprite
