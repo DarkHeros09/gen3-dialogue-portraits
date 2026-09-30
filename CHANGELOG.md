@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.2.18 — the Old Amber scientist's box: the TEXT picks him too
+
+**What changed**
+
+- **A second text-keyed table, `TEXT_NAMES_A_GFX`,** for a speaker whose picture
+  is a trainer bust rather than a species.  Its value is the GRAPHICS id whose
+  `GFX_ART` entry should answer, so the picture stays owned by the table that
+  already has it instead of being copied here.
+- `["Ssh! Listen, I need to share a secret"] = 55` -- Pewter Museum's fossil-room
+  scientist, the man who hands over the OLD AMBER.  His gate has been open since
+  1.2.7/1.2.8 and graphic 55 has answered 107 all along, so the missing face was
+  the ROUTE half of the same decision the Nidoran's line needed in 1.2.17:
+  `speakerFor` now returns the graphic for that text, before the press and scene
+  routes, and the gate accepts the same text.  One table, two readers.
+- **Minimal by construction**: the entry is an opening clause, so no other box in
+  the game matches it, and no other table or route is touched.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- The amber box now resolves `gfx = 55 -> artFor -> pic 107`.
+- The neighbouring museum box ("We have two fossils of rare, prehistoric
+  POKéMON on exhibit.") still resolves to nothing from this table, i.e. it is
+  untouched -- checked explicitly.
+
 ## 1.2.17 — the Nidoran's line: the TEXT now picks the speaker, not the press
 
 **1.2.16 opened the gate and the line still wore the wrong face** -- the report is

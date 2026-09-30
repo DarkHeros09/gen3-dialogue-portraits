@@ -857,6 +857,22 @@ local TEXT_NAMES_A_SPECIES = {
   ["NIDORAN♂: Bowbow"] = "NIDORAN_M",
 }
 
+-- The same idea for a speaker whose picture is a TRAINER bust rather than a
+-- species: the value is the GRAPHICS id whose GFX_ART entry should answer, so the
+-- picture is resolved by the table that already owns it rather than duplicated
+-- here.
+--
+-- Pewter Museum's fossil-room scientist is the case.  His gate is already open
+-- (NEUTRAL_COLOUR_PORTRAIT, 1.2.7/1.2.8), and graphic 55 already answers 107 --
+-- but his box still drew no face, so the SPEAKER was not resolving to him.  The
+-- text is the fact that cannot be wrong: "Ssh! Listen, I need to share a secret"
+-- is him talking, whoever the press and scene routes settle on.
+--
+-- A SUBSTRING again, and the opening clause is enough to identify the box.
+local TEXT_NAMES_A_GFX = {
+  ["Ssh! Listen, I need to share a secret"] = 55,
+}
+
 -- Three people the cart DREW but never gave a battle class -- so the class and
 -- sprite routes above cannot answer for them, and the reporter asks for each by
 -- name: Bill, Daisy and Mr. Fuji.
@@ -2159,6 +2175,13 @@ return function(mod)
           return { name = species, species = species, fromText = true }
         end
       end
+      -- The same, for a speaker whose picture is a trainer bust: hand back the
+      -- GRAPHIC so GFX_ART answers it, rather than a second copy of the picture.
+      for fragment, gfx in pairs(TEXT_NAMES_A_GFX) do
+        if text:find(fragment, 1, true) then
+          return { gfx = gfx, fromText = true }
+        end
+      end
     end
 
     -- The object the running script stages for THIS box is read FIRST, and the
@@ -3142,6 +3165,9 @@ return function(mod)
     -- is resolved independently by speakerFor anyway.
     if type(text) == "string" then
       for fragment in pairs(TEXT_NAMES_A_SPECIES) do
+        if text:find(fragment, 1, true) then return true end
+      end
+      for fragment in pairs(TEXT_NAMES_A_GFX) do
         if text:find(fragment, 1, true) then return true end
       end
     end
