@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.2.12 — the Pewter Nidoran's box is neutral, so it gets the exception
+
+**What changed**
+
+- **`NEUTRAL_COLOUR_PORTRAIT` gained one entry.** 1.2.9 gave the Pewter City
+  Nidoran a line, and the line showed with no face -- because its box is drawn in
+  the neutral grey/black, which is the colour the cart uses for narration, signs
+  and item boxes, and `coloursAllowPortrait` declines those.  The fix is the same
+  shape as the museum scientist's in 1.2.7: one `(map, graphic)` pair,
+  `["FR_PEWTER_CITY_HOUSE1"] = { [123] = true }`, so this speaker keeps his face
+  and **the rule itself is untouched** -- every other neutral box in the game is
+  still declined.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- The data path was already proven for this graphic before the change: `gfx 123 ->
+  speciesOfGfx=NIDORAN_M -> speciesKey=nidoranm -> artFor=ART(image)`, crop
+  `13,13,32`.  So the gate was the only thing standing between it and a face.
+
 ## 1.2.11 — the Nidoran spelling REVERTED: 1.2.6 broke both of them
 
 **This undoes 1.2.6's change to `GFX_MON`.** That release swapped the two Nidoran

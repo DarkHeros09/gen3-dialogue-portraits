@@ -826,6 +826,12 @@ local PLACE_ART = {
 -- the game is touched: the list is a (map, graphic) pair, not a rule.
 local NEUTRAL_COLOUR_PORTRAIT = {
   ["FR_PEWTER_CITY_MUSEUM_1F"] = { [55] = true },
+  -- The Pewter City Nidoran (graphic 123, PewterCity_House1 obj 3).  Its box is
+  -- drawn in the neutral colour -- the report is "the text is in grey/black" --
+  -- so the gate declined it and the line 1.2.9 added showed with no face.  Same
+  -- shape as the scientist above: a person-shaped speaker the cart colours as
+  -- narration.  One (map, graphic) pair, so the rule itself is untouched.
+  ["FR_PEWTER_CITY_HOUSE1"] = { [123] = true },
 }
 
 -- Three people the cart DREW but never gave a battle class -- so the class and
