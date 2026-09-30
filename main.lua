@@ -3312,6 +3312,23 @@ return function(mod)
 
   -- ------- the press
   mod.hooks:wrap("world.talk", function(next, game, eo)
+    -- ------- the Pewter City Nidoran's own line
+    --
+    -- PewterCity_House1 obj 3 is the Nidoran the woman tells to sit (graphic
+    -- 123).  Its object script g3:0816a736 is
+    -- `lock / faceplayer / call / applymovement / waitmovement / release` and
+    -- opens NO box at all, so pressing it only walked it about -- there was
+    -- nothing to read.  The line below is the one the report asked for, and it
+    -- is shown from here because a mod cannot put a message into the cart's own
+    -- script; this hook is the only seam that sees the press.
+    --
+    -- It is (map, graphic), not "any Nidoran": the FourIsland pair wear the same
+    -- graphic, one of them as a stuffed doll, and neither is this one.
+    if type(eo) == "table" and tonumber(eo.graphicsId) == 123
+        and mapIdNow() == "FR_PEWTER_CITY_HOUSE1" then
+      Message.show("NIDORAN\u{2642}: bow bow")
+    end
+
     -- The hook fires only for a press that reached an object with a script, so
     -- recording here is recording a conversation -- not a sign, not a hidden
     -- item, not a menu.

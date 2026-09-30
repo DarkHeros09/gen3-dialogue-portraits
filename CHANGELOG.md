@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.9 — the Pewter City Nidoran gets a line
+
+**What changed**
+
+- **Pressing Pewter City's Nidoran now says something.** `PewterCity_House1`
+  obj 3 is the Nidoran the woman tells to sit (graphic 123), and its object
+  script `g3:0816a736` is `lock / faceplayer / call / applymovement /
+  waitmovement / release` -- it opens **no box at all**, so pressing it only
+  walked it about and there was nothing to read.  The `world.talk` hook now
+  shows *"NIDORAN♂: bow bow"* for that press.  A mod cannot put a message into
+  the cart's own script, so this hook is the only seam that sees it.
+- Scoped to `(map, graphic)` -- `FR_PEWTER_CITY_HOUSE1` and graphic 123 -- not to
+  "any Nidoran": FourIsland wears the same graphic twice, once as a stuffed doll,
+  and neither of those is this one.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- **The box appearing on the A press is NOT verified here** -- that needs the
+  running game.  The hook fires before the press record is refreshed, so the
+  first thing to check in play is that the line appears on the FIRST press, not
+  only the second.
+
 ## 1.2.8 — the THIRD museum scientist, and why 1.2.7 only fixed two
 
 **The three museum scientists do not share a script shape.** Lid 3
