@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.2.16 — the Nidoran's line: a plain text match, because the smart one did nothing
+
+**1.2.15's check did not work in the game**, and the report proves it: the box was
+still grey/black and still faceless.  It resolved the box's name token through
+`speciesArt` and let the box through only if that returned an entry -- and
+`speciesArt` can answer nil for reasons a mod cannot see, because it goes through
+the engine's own species registry and `frontPic`.
+
+**What changed**
+
+- **A plain substring table**, `TEXT_NAMES_A_SPECIES`, checked with `find(..., 1,
+  true)`.  No pattern, no registry, no species art: if the fragment is in the text
+  it matches, and the speaker is resolved independently by `speakerFor` anyway
+  (its "a species named itself" path already answers this text exactly).
+- The fragment is `"NIDORAN♂: Bowbow"`, not the whole line -- the cart writes
+  `"NIDORAN♂: Bowbow!"` and a report may quote it with a space before the bang, so
+  an exact match would be a trap.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- The fragment matches the cart's spelling AND the quoted one, and does not match
+  the woman's own line ("NIDORAN, sit!").
+
 ## 1.2.15 — a box that NAMES a species keeps its face, whatever colour it is
 
 **What changed**

@@ -834,6 +834,24 @@ local NEUTRAL_COLOUR_PORTRAIT = {
   ["FR_PEWTER_CITY_HOUSE1"] = { [123] = true },
 }
 
+-- Boxes whose TEXT names their own speaker, matched as PLAIN SUBSTRINGS.
+--
+-- The Pewter City Nidoran's line is the case.  ONE subroutine (g3:0816a749)
+-- serves both the woman's press and the Nidoran's, and it sets `textcolor 3` --
+-- the neutral grey/black -- so the gate above would take the Nidoran's face off
+-- that line in BOTH interactions.  The text is the one fact that cannot be
+-- wrong: whatever was pressed, "NIDORAN♂: Bowbow" is the Nidoran speaking.
+--
+-- A SUBSTRING, not the whole line: the cart writes "NIDORAN♂: Bowbow!" and a
+-- report may quote it with a space before the bang, so matching the line exactly
+-- would be a trap.  Plain `find`, not a pattern and not a speciesArt lookup --
+-- an earlier version of this check resolved the token through speciesArt and did
+-- nothing in the game, because speciesArt can answer nil for reasons a mod
+-- cannot see.  One entry, same shape as NEUTRAL_COLOUR_PORTRAIT above.
+local TEXT_NAMES_A_SPECIES = {
+  ["NIDORAN♂: Bowbow"] = true,
+}
+
 -- Three people the cart DREW but never gave a battle class -- so the class and
 -- sprite routes above cannot answer for them, and the reporter asks for each by
 -- name: Bill, Daisy and Mr. Fuji.
@@ -3093,11 +3111,19 @@ return function(mod)
     -- names the WOMAN the list below cannot match, even though the mod's own
     -- resolver already answers that text with the species exactly (see
     -- speakerFor's "a species named itself").  The text is the fact that cannot
-    -- be wrong, so a token that resolves to a species this mod can draw is a
-    -- person-shaped speaker whatever colour the cart drew it in.
+    -- be wrong.
+    --
+    -- This is a PLAIN SUBSTRING, not a regex and not a speciesArt lookup, and
+    -- that is deliberate: a version of this check that resolved the token through
+    -- speciesArt did nothing at all in the game -- the box stayed grey/black and
+    -- faceless -- because speciesArt can answer nil for reasons a mod cannot see
+    -- (it goes through the engine's own species registry and frontPic).  A
+    -- fragment that is present in the text cannot fail to match, and the speaker
+    -- is resolved independently by speakerFor anyway.
     if type(text) == "string" then
-      local token = text:match("^%s*([A-Z][A-Z0-9%._%-'♀♂ ]*):")
-      if token and speciesArt and speciesArt(token) then return true end
+      for fragment in pairs(TEXT_NAMES_A_SPECIES) do
+        if text:find(fragment, 1, true) then return true end
+      end
     end
     -- A person whose box the CART draws in the neutral colour.  The rule above
     -- is right -- a neutral box is narration, a sign or an item box -- but it is
