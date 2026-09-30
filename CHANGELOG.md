@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.2.6 — the Machop's narration line, and the Nidoran spelling
+
+**What changed**
+
+- **"A MACHOP is stomping the land flat." draws no portrait.** A ONE-OFF, not a
+  rule: `speakerFor` matches that one exact line and returns no speaker, so the
+  player's own observation about the Machop draws nothing -- while the SAME
+  object's other box, "MACHOP: Guoh! Gogogoh!", is the creature talking and keeps
+  its face. Every other Pokemon in the world is untouched, because nothing else
+  matches the line.
+- **The two Nidoran are spelled the way the cart spells them.** The engine's dex
+  is keyed by the names in the cart's own species table -- `names[29]` is
+  `"NIDORAN♀"` and `names[32]` is `"NIDORAN♂"` -- so `GFX_MON`'s
+  `"NIDORAN_F"`/`"NIDORAN_M"` (the engine's `keyName` FOLD of those same two
+  names, which is what the CROP table wants) was not a spelling the dex answers
+  to. The female was broken in exactly the same way as the male, and both now use
+  the cart's own form.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites.
+- The Machop's two boxes resolve differently, checked through the mod's own
+  resolver: `"MACHOP: Guoh! Gogogoh!"` has a speaker, `"A MACHOP is stomping the
+  land flat."` has none.
+- `GFX_MON[122]`/`[123]` now read `NIDORAN♀`/`NIDORAN♂`. (The dex itself is not
+  loaded in the headless harness -- it needs the engine's extracted species pack
+  -- so the spelling is verified against the cart's own name table rather than
+  against a resolved picture.)
+
+**Still open**
+
+- **The museum scientist.** `PewterCity_Museum_1F` obj 3 (graphic 55) resolves to
+  **107 on both of his boxes**, and his script is a plain press -- there is no
+  faceless box in the museum to fix. If the box you see draws without a portrait,
+  the cause is somewhere else; send me the exact line and I will chase it.
+
 ## 1.2.5 — three of six: the captain's last line, the Game Corner counter, the Rocket window
 
 **What changed**

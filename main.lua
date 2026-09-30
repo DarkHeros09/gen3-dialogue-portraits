@@ -708,7 +708,13 @@ local GFX_MON = {
   [112] = "POLIWRATH",  [113] = "CLEFAIRY",   [114] = "PIDGEOT",
   [115] = "JIGGLYPUFF", [116] = "PIDGEY",     [117] = "CHANSEY",
   [118] = "OMANYTE",    [119] = "KANGASKHAN", [120] = "PIKACHU",
-  [121] = "PSYDUCK",    [122] = "NIDORAN_F",  [123] = "NIDORAN_M",
+  -- The two Nidoran are spelled the way the CART spells them.  The engine's own
+  -- dex is keyed by the name in the cart's species table -- names[29] is
+  -- "NIDORAN♀" and names[32] is "NIDORAN♂" -- so "NIDORAN_F"/"NIDORAN_M" (the
+  -- engine's keyName FOLD of the same two names, which is what the crop table
+  -- wants) is not a spelling the dex answers to.  The female was already broken
+  -- this way and so was the male; both now use the cart's own form.
+  [121] = "PSYDUCK",    [122] = "NIDORAN♀",   [123] = "NIDORAN♂",
   [124] = "NIDORINO",   [125] = "MEOWTH",     [126] = "SEEL",
   [127] = "VOLTORB",    [128] = "SLOWPOKE",   [129] = "SLOWBRO",
   [130] = "MACHOP",     [131] = "WIGGLYTUFF", [132] = "DODUO",
@@ -2077,6 +2083,18 @@ return function(mod)
 
   -- ------- the resolver
   local function speakerFor(text)
+    -- ONE-OFF, and deliberately not a rule.  "A MACHOP is stomping the land
+    -- flat." is the player's own observation about the Machop standing in front
+    -- of them, not the Machop speaking, so it must draw no portrait -- while the
+    -- SAME object's other box, "MACHOP: Guoh! Gogogoh!", is the creature talking
+    -- and keeps its face.  Every other Pokemon in the world is untouched: this
+    -- matches one exact line, not a class of lines, and there is no rule here to
+    -- catch anything else.
+    if type(text) == "string"
+        and text:find("A MACHOP is stomping the land flat", 1, true) then
+      return nil
+    end
+
     -- The object the running script stages for THIS box is read FIRST, and the
     -- press record is the fallback.  A script that moves or turns somebody
     -- immediately before a line is saying "this line is theirs" -- that is the
