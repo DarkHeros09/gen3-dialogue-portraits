@@ -67,5 +67,5 @@ README.md
 # Exact paths, like every other entry here, so a version bump means renaming
 # them.  `tests/launcher_update_test.lua` fails if they stop matching the
 # manifest's id and version, which is the reminder.
-gen3-dialogue-portraits-1.2.14.modpkg
-gen3-dialogue-portraits-1.2.14.zip
+gen3-dialogue-portraits-1.2.15.modpkg
+gen3-dialogue-portraits-1.2.15.zip

@@ -3078,7 +3078,7 @@ return function(mod)
   -- npcColor at all is NOT declined: every field box in the game carries one, so
   -- an absent value means a caller outside the field path (a suite, a menu)
   -- rather than a black/grey box.
-  local function coloursAllowPortrait(opts)
+  local function coloursAllowPortrait(opts, text)
     if type(opts) ~= "table" then return true end
     local c = opts.npcColor
     if c == nil then return true end
@@ -3087,6 +3087,18 @@ return function(mod)
     local neutral = FrlgFont.NPC_TEXT_COLOR and FrlgFont.NPC_TEXT_COLOR.NEUTRAL
     if neutral == nil then neutral = 3 end
     if tonumber(c) ~= neutral then return true end
+    -- A box whose TEXT names its own speaker.  "NIDORAN♂: Bowbow!" is the case:
+    -- ONE subroutine (g3:0816a749) serves both the woman's press and the
+    -- Nidoran's, so the press record names whichever was pressed -- and when it
+    -- names the WOMAN the list below cannot match, even though the mod's own
+    -- resolver already answers that text with the species exactly (see
+    -- speakerFor's "a species named itself").  The text is the fact that cannot
+    -- be wrong, so a token that resolves to a species this mod can draw is a
+    -- person-shaped speaker whatever colour the cart drew it in.
+    if type(text) == "string" then
+      local token = text:match("^%s*([A-Z][A-Z0-9%._%-'♀♂ ]*):")
+      if token and speciesArt and speciesArt(token) then return true end
+    end
     -- A person whose box the CART draws in the neutral colour.  The rule above
     -- is right -- a neutral box is narration, a sign or an item box -- but it is
     -- an inference from the colour, and Pewter Museum's scientists are the case
@@ -3162,7 +3174,7 @@ return function(mod)
     local pending, side, width, plan = nil, nil, nil, nil
     local speaker = nil
     if style ~= "off" and frameFromOpts(opts) == "dialogue"
-        and coloursAllowPortrait(opts) then
+        and coloursAllowPortrait(opts, text) then
       speaker = speakerFor(text)
       local portrait = speaker and portraitFor(speaker)
       if portrait then

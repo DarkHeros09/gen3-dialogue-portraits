@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.2.15 — a box that NAMES a species keeps its face, whatever colour it is
+
+**What changed**
+
+- **`coloursAllowPortrait` now also accepts a box whose TEXT names its own
+  speaker.** The Pewter City Nidoran's line is the case, and the reason the
+  1.2.12 exception was not enough: ONE subroutine (`g3:0816a749`) serves BOTH the
+  woman's press and the Nidoran's, so the press record names whichever was
+  pressed -- and when it names the **woman**, the `(map, graphic)` list could not
+  match, so her press showed the Nidoran's line with no face while the Nidoran's
+  press showed it correctly.
+- The text is the fact that cannot be wrong.  The mod's own resolver already
+  answers a text-named species exactly (see `speakerFor`'s "a species named
+  itself", which returns `{ name = ..., species = ..., fromText = true }`), so the
+  gate now asks the same question: a token that resolves to a species this mod can
+  draw is a person-shaped speaker whatever colour the cart drew it in.  So
+  **every** box carrying that text gets the Nidoran's face, and the woman's own
+  line still gets hers -- the two can no longer be swapped, because the text
+  decides each box independently of which object was pressed.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+
 ## 1.2.14 — the Nidoran's line was the CART'S all along; my duplicate is gone
 
 **What changed**
