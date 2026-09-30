@@ -1695,8 +1695,18 @@ return function(mod)
     --    first, which is what keeps a script handing off between two characters
     --    box by box correct, and a species named in the text is not a graphic
     --    question at all (see speakerFor, which resolves it before this runs).
+    --
+    --    ONE GRAPHIC IS EXEMPT from "the name first", and it is the fat man's.
+    --    1.2.3 gave graphic 27 the Collector's bust out of rom_sprites, so it
+    --    no longer declines -- and with it answering, Fuchsia City's fat man
+    --    went straight back to wearing ERIK's lab coat, which is the same
+    --    report this block was written for.  His own graphic is now a fact
+    --    about who is standing there, so his box does not get to hand off to a
+    --    name it mentions.  It is one graphic, not a rule: every other graphic
+    --    that answers still takes the name first.
+    local NAME_PROOF = { [27] = true }   -- FAT MAN: "ERIK: Where's SARA?"
     local gfxDeclines = speaker.gfx ~= nil
-      and GFX_ART[speaker.gfx] == false
+      and (GFX_ART[speaker.gfx] == false or NAME_PROOF[speaker.gfx] == true)
       and not speaker.species
     if speaker.name and not gfxDeclines then
       local byName = picArt(picForName(speaker.name))

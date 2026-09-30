@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.2.4 — framing for the pictures 1.2.3 linked, and ERIK's own face back
+
+Two of the five reports in this batch. The other three are described at the end,
+because each needs a decision rather than an edit.
+
+**What changed**
+
+- **Nine crop windows, measured from the cart's own pixels.** The pictures 1.2.3
+  linked -- 18, 33, 46, 54, 75 and 81 -- had **no window at all**, so every one
+  took the default `{16,3,32}`; so did 89, 97 and 107, which earlier releases
+  used without ever framing them. All nine are now in `art/crops.lua`, computed
+  by `.probe/dp3_crop_measure.py`, which applies the table's own rule to
+  `rom_sprites/raw/`: x is the head band's centre minus 16, y the artwork's first
+  row minus three rows of headroom. 75 -- the old bald man -- is `{16,1,32}`.
+- **ERIK's box no longer wears the Super Nerd's lab coat.** Fuchsia City's fat
+  man wears graphic 27 and his box says *"ERIK: Where's SARA? I said I'd meet her
+  here."* The name route ran first and returned 89 -- ERIK the Super Nerd, whose
+  picture is a man in a white lab coat -- which is the original report coming
+  back the moment 1.2.3 gave that graphic a bust to answer with. His own graphic
+  is now a fact about who is standing there, so **graphic 27 is the one graphic
+  exempt from "the name first"** (`NAME_PROOF`). Every other graphic that
+  answers still takes the name first, so a script handing off between two
+  characters box by box is untouched.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites.
+- The ERIK box resolves 54 (his own graphic) and not 89, checked through the
+  mod's own resolver.
+
+**Still open from the same batch — each needs a decision, not an edit**
+
+- **The museum scientist already has a portrait.** `PewterCity_Museum_1F` lid 3
+  (`gfx 55`, g3:0816a4ae -- *"PLAYER received the OLD AMBER from the man"*) has
+  resolved to 107 all along, and his script is a plain press, not a scene. He now
+  has a window (107 -> `{17,1,32}`), but nothing was missing. Say which object
+  you saw.
+- **The Machop line needs a rule.** `VermilionCity` obj 4 IS the Machop
+  (`gfx 130`), and it owns both *"MACHOP: Guoh! Gogogoh!"* -- which names its
+  speaker and should keep the portrait -- and *"A MACHOP is stomping the land
+  flat."*, which is the player's own observation. Nothing in the mod yet
+  distinguishes a box the object says from a box about the object.
+- **RIVAL is one constant.** `RIVAL_ART = 106`, overridable by
+  `CustomArt/RIVAL.png`. Stage-dependent faces need the rival's per-stage trainer
+  ids; `TRAINER_IDS` (script key -> trainer id) is the seam.
+
 ## 1.2.3 — five faces the graphic table was missing, and one it had wrong
 
 Six links taken from `rom_sprites/` -- the cart's own assets, extracted with the

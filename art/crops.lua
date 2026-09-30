@@ -454,6 +454,27 @@ return {
     -- so the rule's answer is {16, 0, 32}.  The same picture is worn by the two
     -- Ladies standing outside on the island, who want the same window.
     ["146"] = { 16, 0, 32 },
+
+    -- ------- the pictures 1.2.3 linked, and the three it re-pointed
+    --
+    -- None of these had a window, so every one took the default {16,3,32}.  Each
+    -- was measured from the cart's own pixels by .probe/dp3_crop_measure.py,
+    -- which applies this table's own rule -- x is the head band's centre minus
+    -- 16, y the artwork's first row minus three rows of headroom (clamped at 0).
+    -- The head band is the opaque art in the top third of the sprite.
+    --
+    -- 89, 97 and 107 are here because they are the pictures the earlier
+    -- releases used without ever framing them: the Mt Moon Super Nerd, the old
+    -- man, and the Scientist.  75 is the old bald man 1.2.3 moved graphic 33 to.
+    ["18"] = { 20, 3, 32 },   -- bbox (15,6)-(56,62);  head x 19-54
+    ["33"] = { 10, 3, 32 },   -- bbox (7,6)-(57,62);   head x 13-40
+    ["46"] = { 23, 0, 32 },   -- bbox (12,3)-(49,62);  head x 29-49
+    ["54"] = { 16, 1, 32 },   -- bbox (11,4)-(53,62);  head x 11-53
+    ["75"] = { 16, 1, 32 },   -- bbox (17,4)-(47,63);  head x 23-41 -- the old bald man
+    ["81"] = { 9, 0, 32 },    -- bbox (9,1)-(55,63);   head x 14-36
+    ["89"] = { 20, 0, 32 },   -- bbox (21,3)-(50,63);  head x 23-50
+    ["97"] = { 17, 8, 32 },   -- bbox (7,11)-(50,62);  head x 23-44
+    ["107"] = { 17, 1, 32 },  -- bbox (8,4)-(56,62);   head x 12-55
   },
 
   -- Per-species overrides, keyed by the species key, lowercased and stripped of
