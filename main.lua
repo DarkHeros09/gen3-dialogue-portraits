@@ -834,22 +834,27 @@ local NEUTRAL_COLOUR_PORTRAIT = {
   ["FR_PEWTER_CITY_HOUSE1"] = { [123] = true },
 }
 
--- Boxes whose TEXT names their own speaker, matched as PLAIN SUBSTRINGS.
+-- Boxes whose TEXT names their own speaker, matched as PLAIN SUBSTRINGS, with the
+-- species that speaker is.
 --
 -- The Pewter City Nidoran's line is the case.  ONE subroutine (g3:0816a749)
 -- serves both the woman's press and the Nidoran's, and it sets `textcolor 3` --
 -- the neutral grey/black -- so the gate above would take the Nidoran's face off
--- that line in BOTH interactions.  The text is the one fact that cannot be
--- wrong: whatever was pressed, "NIDORAN♂: Bowbow" is the Nidoran speaking.
+-- that line in BOTH interactions.  Worse, with the gate open the SPEAKER still
+-- resolved to whoever was pressed, so the line wore the WOMAN's face: the report
+-- is "now it shows the trainer portrait not NIDORAN♂".
+--
+-- The text is the one fact that cannot be wrong: whatever was pressed,
+-- "NIDORAN♂: Bowbow" is the Nidoran speaking.  Both the gate and `speakerFor`
+-- read THIS table, and neither asks the engine anything -- a version of the gate
+-- that resolved the token through `speciesArt` did nothing at all in the game,
+-- because that can answer nil for reasons a mod cannot see.
 --
 -- A SUBSTRING, not the whole line: the cart writes "NIDORAN♂: Bowbow!" and a
--- report may quote it with a space before the bang, so matching the line exactly
--- would be a trap.  Plain `find`, not a pattern and not a speciesArt lookup --
--- an earlier version of this check resolved the token through speciesArt and did
--- nothing in the game, because speciesArt can answer nil for reasons a mod
--- cannot see.  One entry, same shape as NEUTRAL_COLOUR_PORTRAIT above.
+-- report may quote it with a space before the bang.  The VALUE is the species in
+-- the engine's fold, which is what `GFX_MON` and `speciesArt` both use.
 local TEXT_NAMES_A_SPECIES = {
-  ["NIDORAN♂: Bowbow"] = true,
+  ["NIDORAN♂: Bowbow"] = "NIDORAN_M",
 }
 
 -- Three people the cart DREW but never gave a battle class -- so the class and
@@ -2139,6 +2144,21 @@ return function(mod)
     if type(text) == "string"
         and text:find("A MACHOP is stomping the land flat", 1, true) then
       return nil
+    end
+
+    -- A box whose TEXT names its own speaker, read BEFORE the press and the
+    -- scene routes -- and it OUTRANKS both, because it is the only one of the
+    -- three that cannot be wrong about who is talking.  The Pewter City Nidoran's
+    -- line is the case: ONE subroutine serves the woman's press and the
+    -- Nidoran's, so whichever was pressed the line wore that face -- the report
+    -- is "now it shows the trainer portrait not NIDORAN♂".  Plain substring, no
+    -- lookup; see the table for why.
+    if type(text) == "string" then
+      for fragment, species in pairs(TEXT_NAMES_A_SPECIES) do
+        if text:find(fragment, 1, true) then
+          return { name = species, species = species, fromText = true }
+        end
+      end
     end
 
     -- The object the running script stages for THIS box is read FIRST, and the

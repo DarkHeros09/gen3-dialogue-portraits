@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.2.17 — the Nidoran's line: the TEXT now picks the speaker, not the press
+
+**1.2.16 opened the gate and the line still wore the wrong face** -- the report is
+"now it shows the trainer portrait not NIDORAN♂".  The gate was only half the
+problem: with it open, the SPEAKER still resolved through the press and the scene
+routes, and the press is the WOMAN when she is the one who told him to sit.
+
+**What changed**
+
+- **`TEXT_NAMES_A_SPECIES` now maps a text fragment to the species**, and
+  `speakerFor` reads it FIRST, before the press record and before the scene route.
+  It outranks both, because it is the only one of the three that cannot be wrong
+  about who is talking: whatever was pressed, "NIDORAN♂: Bowbow" is the Nidoran.
+- Plain substring, no pattern and no lookup -- the same rule 1.2.16 settled: a
+  gate or a route must be a fact the mod already holds, never a question that can
+  answer nil.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- The failing case is now a check: with the WOMAN's object pressed
+  (`gfx 16`, `g3:0816a726`), `speakerFor("NIDORAN♂: Bowbow!")` returns
+  `species = NIDORAN_M` and `artFor` yields the picture -- not her face.
+- The woman's own line ("NIDORAN, sit!") does not match the fragment, so she keeps
+  hers.
+
 ## 1.2.16 — the Nidoran's line: a plain text match, because the smart one did nothing
 
 **1.2.15's check did not work in the game**, and the report proves it: the box was
