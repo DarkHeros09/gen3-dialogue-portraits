@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.2.3 — five faces the graphic table was missing, and one it had wrong
+
+Six links taken from `rom_sprites/` -- the cart's own assets, extracted with the
+engine's `ow_extract` and its trainer-picture dump -- and confirmed by eye
+against the pairs rather than inferred from a class name.
+
+| overworld graphic | portrait | who |
+| --- | --- | --- |
+| `ow_027` FAT_MAN | `tr_054` | the Collector |
+| `ow_031` WOMAN_3 | `tr_033` | the PokéFan |
+| `ow_033` OLD MAN 2 | `tr_075` | the cart's **second** old-man bust |
+| `ow_047` WORKER_M | `tr_046` | the Bird Keeper |
+| `ow_059` CHEF | `tr_018` | the Kindler |
+| `CAPTAIN` (his own text's name) | `tr_081` | the S.S. Anne's captain |
+
+**What changed**
+
+- **Four graphics that answered nothing now answer.** `27`, `31`, `47` and `59`
+  had no host sprite entry, no class and no name, so the people wearing them
+  drew no portrait at all -- the museum's attendant, the S.S. Anne's kitchen
+  hands, Silph Co.'s workers and the women on the corridors.
+- **`ow_033` is a correction, not a hole.** It was 97, with `32` and `34`, on the
+  note that "the cart carries exactly one old-man bust". There are two -- 97 and
+  75 -- and they are different men: `ow_032` is blue-robed, `ow_033` is khaki, and
+  75 is the bald khaki one. `32` and `34` keep 97.
+- **`CAPTAIN` is answered by the name his own box uses.** "CAPTAIN: Ooargh… I
+  feel hideous…" (SSAnne_CaptainsOffice, g3:08160b3a). He wears graphic 63,
+  which no other object does, but that graphic has no host entry and he has no
+  class, so the name is what resolves him.
+- **`ow_027` reverses a deliberate DECLINE.** It was `false` -- "the cart never
+  drew the Fat Man" -- which is also what stopped Fuchsia City's fat man, whose
+  box says "ERIK: ", from wearing the Super Nerd's face. **He now resolves
+  through the graphic instead of declining, so that box resolves the name route
+  first again; that interaction is worth watching in play.**
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, with the three assertions
+  that encoded the superseded decisions updated to say so.
+- `.probe/dp3_links_check.lua` resolves all six through the mod's own resolver
+  (9 checks, 0 failures), and bites: reverting the links fails it by 6.
+
 ## 1.2.2 — a payload an update cannot trip on
 
 The launcher could not update the mod. It stopped on

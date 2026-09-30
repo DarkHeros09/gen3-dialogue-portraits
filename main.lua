@@ -636,9 +636,29 @@ local GFX_ART = {
   -- wear.  Measured by .probe/dp3_gfx_census.lua, which also reports that the
   -- cart carries exactly one old-man bust.
   [32] = 97,             -- OLD MAN 1
-  [33] = 97,             -- OLD MAN 2
+  [33] = 75,             -- OLD MAN 2 -- the cart's OTHER old-man bust; see below
   [34] = 97,             -- OLD MAN LYING DOWN
   [35] = 35,             -- OLD WOMAN
+
+  -- ------- five links the graphic table was missing
+  --
+  -- Taken from rom_sprites/ -- the cart's own assets, extracted with the
+  -- engine's ow_extract and its trainer-picture dump -- and confirmed by eye
+  -- against the pairs rather than inferred from a class name: each graphic here
+  -- is the same person as the bust it now answers with.  Four of them answered
+  -- NOTHING before this (no host entry, no class, no name), which is the
+  -- reported "portraits are missing" for the people wearing them; the fifth is
+  -- the correction below.
+  --
+  -- [33] is the one that CHANGES an answer rather than filling a hole.  It was
+  -- 97, on the note further up that "the cart carries exactly one old-man bust".
+  -- There are two: 97 and 75, and they are different men (75 is bald with white
+  -- hair at the sides and a khaki outfit).  Graphic 33 is the one the SECOND
+  -- wears, so it moves to 75 while 32 and 34 keep 97.
+  [27] = 54,             -- FAT_MAN -> the COLLECTOR
+  [31] = 33,             -- WOMAN_3 -> the POKéFAN
+  [47] = 46,             -- WORKER_M -> the BIRD KEEPER
+  [59] = 18,             -- CHEF -> the KINDLER
 }
 
 -- The cart's own Pokemon overworld graphics, which the host sprite vocabulary
@@ -722,6 +742,14 @@ local NAME_ART = {
   -- object agree: 123 either way, instead of the label-less boxes falling to
   -- whichever object the scene moved last.
   BUTLER        = "GENTLEMAN",
+  -- CAPTAIN is the S.S. Anne's, and his own text names him: "CAPTAIN: Ooargh…
+  -- I feel hideous… Urrp! Seasick…" (SSAnne_CaptainsOffice, g3:08160b3a).  He
+  -- wears OBJ_EVENT_GFX_CAPTAIN (63), which no other object in the game does,
+  -- so the name route and the graphic agree -- but that graphic has no host
+  -- sprite entry and he has no class of his own, so before this the name was
+  -- the only thing that could answer and nothing was there to answer with.
+  -- Picture 81 is the cart's captain bust.
+  CAPTAIN       = 81,
 }
 
 -- A (map, graphic) override for a named character the GENERATED per-map table

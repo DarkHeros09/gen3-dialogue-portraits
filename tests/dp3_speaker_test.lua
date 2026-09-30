@@ -765,16 +765,20 @@ eq(asked.trainer[#asked.trainer], 90, "the cart's own HIKER picture, by graphics
 eq(X.artFor({ sprite = "SPRITE_POKEFAN_M" }).pic, 66,
    "where the sprite alone answers with the PokéFan's")
 
--- A `false` entry: a graphic the cart never drew a battle bust of.  The Fat Man
--- is the shape of it -- the host maps graphic 27 onto SPRITE_FISHER, so the
--- sprite route hands back the Fisherman, which is the face a Fat Man wore.
+-- A `false` entry: a graphic the cart never drew a battle bust of.  The female
+-- Worker is the shape of it -- the host maps graphic 48 onto SPRITE_SCIENTIST,
+-- so the sprite route hands back the Scientist, which is the face she wore.
 -- Declining has to close the SPRITE route too, or the host's guess comes
 -- straight back.
-eq(X.GFX_ART[27], false, "graphic 27 is the Fat Man, whom the cart never drew")
-eq(X.artFor({ sprite = "SPRITE_FISHER" }).pic, 67,
-   "the Fisherman sprite alone still answers")
-eq(X.artFor({ sprite = "SPRITE_FISHER", gfx = 27 }), nil,
-   "but the Fat Man's graphic declines it -- no portrait, not a Fisherman's")
+--
+-- This block used graphic 27, the Fat Man, as its example until 1.2.3 gave him
+-- the Collector's bust out of rom_sprites (see GFX_ART).  The rule is the same
+-- one; only the example moved.
+eq(X.GFX_ART[48], false, "graphic 48 is the female Worker, whom the cart never drew")
+eq(X.artFor({ sprite = "SPRITE_SCIENTIST" }).pic, 107,
+   "the Scientist sprite alone still answers")
+eq(X.artFor({ sprite = "SPRITE_SCIENTIST", gfx = 48 }), nil,
+   "but her graphic declines it -- no portrait, not a Scientist's")
 
 -- And the same rule for a graphic the host table simply does not list: the
 -- sprite the object carries is the host's own fallback, so it says nothing
@@ -876,7 +880,12 @@ local oldMan = X.artFor({ sprite = "SPRITE_GRAMPS", gfx = 32 })
 ok(oldMan ~= nil, "an old man gets a portrait where he had none")
 eq(asked.trainer[#asked.trainer], 97, "the cart's own old-man picture")
 eq(X.GFX_ART[34], 97, "and not picture 34, which is the old karate instructor")
-eq(X.GFX_ART[33], 97, "the second old man is the same person")
+-- 33 is NOT the same man.  This line said "the second old man is the same
+-- person" until 1.2.3, on the note that the cart carries one old-man bust.
+-- rom_sprites says otherwise: ow_032 is a blue-robed old man and ow_033 is a
+-- khaki-clad one, and the cart's second old-man bust is 75 -- a bald man with
+-- white hair at the sides and a khaki outfit, exactly the graphic's man.
+eq(X.GFX_ART[33], 75, "the second old man is a DIFFERENT man -- picture 75")
 eq(X.GFX_ART[34], 97, "and so is the one lying down")
 asked.trainer = {}
 local oldWoman = X.artFor({ sprite = "SPRITE_GRANNY", gfx = 35 })
@@ -1668,12 +1677,16 @@ local function oneSpriteManyPeople()
   --
   -- A `false` entry is the cart's own statement that this graphic's person has
   -- no battle bust, so a token in their dialogue cannot make one exist.
-  eq(X.GFX_ART[27], false,
-     "graphic 27 -- the Fat Man -- is one the cart declined")
+  --
+  -- The example is the female Worker, not graphic 27: 1.2.3 gives the Fat Man
+  -- the Collector's bust out of rom_sprites, so his graphic no longer declines
+  -- and his own boxes resolve through it.
+  eq(X.GFX_ART[48], false,
+     "graphic 48 -- the female Worker -- is one the cart declined")
   eq(X.picForName("ERIK"), 89, "and the pack really does know an ERIK")
-  eq(X.artFor({ gfx = 27, sprite = "SPRITE_FISHER",
+  eq(X.artFor({ gfx = 48, sprite = "SPRITE_SCIENTIST",
                 name = "ERIK", fromText = true }), nil,
-     "but Fuchsia City's fat man is not him, so he declines")
+     "but a declined graphic cannot be overruled by a name in the box")
   eq(X.GFX_ART[76], false,
      "graphic 76 -- Daisy, the rival's sister -- likewise")
   eq(X.picForName("DAISY"), 147, "and the pack really does know a DAISY")
