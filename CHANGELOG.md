@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.10 — the Nidoran's line gets its portrait
+
+**What changed**
+
+- **The Pewter City Nidoran's box now draws its face.** 1.2.9 showed the line
+  from the TOP of the `world.talk` hook, before `forgetSpeaker()` and
+  `pressSpeaker = eo` had run -- and the box's speaker is resolved FROM that
+  record, so at that moment it still named the previous press and the Nidoran
+  itself was never asked.  A Nidoran's face comes from its SPECIES, so with no
+  speaker there was no species and no portrait: the line appeared, the face did
+  not.  The block now sits **after** `pressSpeaker = eo`, which is also what
+  makes it correct on the FIRST press rather than the second.
+- The line reads `NIDORAN♂: Bowbow !` as asked.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- Still a real-game check: the species portrait needs the engine's extracted
+  species pack, which no harness in this workspace has (`[game3/pokemon] species
+  pack missing — re-import FireRed ROM`), so the FACE cannot be rendered here.
+
 ## 1.2.9 — the Pewter City Nidoran gets a line
 
 **What changed**
