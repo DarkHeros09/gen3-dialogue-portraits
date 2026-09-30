@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.2.20 — the Old Amber scientist, BOTH of his branches
+
+**What changed**
+
+- **`TEXT_NAMES_A_GFX` is back, keyed on BOTH of his dialogue entries.** 1.2.18
+  was rolled back in 1.2.19 because the text alone did not seem to identify him;
+  it does, and what was missing was his **second branch**:
+
+  ```
+  g3:0816a4ae   "Ssh! Listen, I need to share a secret…"   (before the amber)
+  g3:0816a4ff   "Ssh!Get the OLD AMBER checked!"           (after it)
+  ```
+
+  His object script tests `checkflag 606` and `goto`s away, so the two are
+  SEPARATE scripts -- keying one left the other bare.  Both now answer graphic 55,
+  so both resolve to picture 107, consistently.
+- **Fragments, not whole lines**, and that is the part that matters:
+  `["Ssh! Listen, I need to share"]` and `["Get the OLD AMBER checked"]`.  The
+  cart writes **"Ssh!Get" with no space** after the bang and puts **line breaks
+  mid-sentence** ("…share asecret…"), so matching either line literally would have
+  missed both.  Each fragment stops before a break and skips the spacing.
+
+**How it is verified**
+
+- **1059 checks, 0 failures** across the five suites, and `main.lua` loads.
+- Both branches resolve `gfx = 55 -> artFor -> pic 107`.
+- Three neighbouring museum boxes ("We have two fossils…", "The secrets of
+  space…", "Please enjoy yourself.") resolve to nothing from this table -- checked
+  explicitly, not assumed.
+
 ## 1.2.19 — ROLLBACK of 1.2.18: the wrong scientist
 
 **Reverted.** 1.2.18 added `TEXT_NAMES_A_GFX` with
