@@ -1,8 +1,13 @@
 # Changelog
 
-## 1.3.4 — the Nugget box goes bare, and the walk-past gets a face
+## 1.3.1 — the Route 24 recruiter: his face back, the Nugget box left bare, and the walk-past given one
 
-Reported, for the same Route 24 recruiter, after 1.3.3:
+This is the first build of the Route 24 recruiter work that is meant for
+distribution. Everything below was developed and verified locally across several
+intermediate builds; those intermediate numbers were never published as releases
+and are not to be distributed. The whole of that work is collected here.
+
+Reported, for the same Route 24 recruiter:
 
 > 1. When the player talks to him directly, his portrait appears correctly
 >    before and after the battle, but when he gives the Nugget, the dialogue
@@ -12,14 +17,47 @@ Reported, for the same Route 24 recruiter, after 1.3.3:
 >    dialogue box currently has no portrait at all; it should display his
 >    portrait properly.
 
-Both are the same trainer and both are one step away from the 1.3.3 fix. Only
-his code, and only the two dialogue flows named, are touched.
+Both are the same trainer, and both follow the earlier "his face is missing"
+report. Only his code, and only the dialogue flows named, are touched.
+
+### The face that went missing at the draw
+
+The face was never missing from the *resolution*. `speakerFor` names the
+recruiter and `artFor` hands back picture 109 in every build since the link
+existed. What went wrong is one step later: the box was resolved, and then
+**declined at the draw**.
+
+A box's text colour is the engine's own answer to "is somebody speaking here?".
+The cart draws a person talking in dark blue or dark red, and narration, signs
+and item boxes in the plain black/grey *neutral* colour — so the mod's rule is
+"a neutral box gets no portrait". That rule is right, and it is why the Pewter
+Museum scientist and the Pewter City Nidoran each needed an explicit exception.
+
+The Route 24 recruiter needed the same one, for the same kind of reason. His
+script is
+
+```
+g3:08168620:  lock / faceplayer / prize box / call g3:081686b9
+g3:081686b9:  NUGGET box / "join TEAM ROCKET?" / trainerbattle 356 / post box
+```
+
+and it carries **no `textcolor` command anywhere**. The engine derives the
+colour from the object the script *selected* (`ctx.selectedLocalId`), and neither
+`lock` nor `faceplayer` selects one — they only read `VAR_LAST_TALKED` — so
+`selectedLocalId` stays empty for the whole conversation. The engine therefore
+drew **every one of his boxes neutral**, and the gate took the Rocket face off
+both the before-battle and the after-battle dialogue.
+
+The fix is one explicit `(map, graphic)` pair — `FR_ROUTE_24` graphic 25 — in
+the same exception table the scientist and the Nidoran already use. It names one
+map and one graphic, so no narration, sign or item box anywhere else is caught
+by it, and every other man wearing graphic 25 (whose entry is unchanged) is
+untouched.
 
 ### The Nugget box (the portrait that should NOT be there)
 
-1.3.3 restored his face with an explicit `(map, graphic)` exception in
-`NEUTRAL_COLOUR_PORTRAIT`. That exception is right for *his* boxes, but it is
-an inference from the **colour**, and there are two different ways a box arrives
+The `(map, graphic)` exception above is right for *his* boxes, but it is an
+inference from the **colour**, and there are two different ways a box arrives
 NEUTRAL (`adapters.resolveNpcColor`):
 
 * `VAR_TEXT_COLOR` was set to 3 by a `textcolor 3` row — the cart **choosing**
@@ -58,74 +96,32 @@ stages nobody still answers nobody.
 
 ### Proof
 
-* `tests/dp3_speaker_test.lua` §16e (NUGGET box, explicitly-neutral boxes) and
-  §16f (walk-past, staging op in a returned subroutine) — **+12 → 500 checks**.
-  Bites against 1.3.3: 5 failures (1 item-box, 4 walk-past).
-* `tests/dp3_load_test.lua`, `dp3_geometry_test.lua`, `dp3_menu_test.lua`,
-  `launcher_update_test.lua`: unchanged.
-* `.probe/love_r24flow` (NEW, 15 checks) — the NUGGET box at the gate with the
-  engine's real colour; bites 1.3.3 (1 failure).
-* `.probe/love_r24walk` (NEW, 19 checks) — the coord-event path with a real VM
-  and the route-24 bundle, parked on the pre-box row with the stub popped; bites
-  1.3.3 (2 failures).
-* `.probe/love3changes` §(3g) — **+4 → 79 checks**; bites 1.3.3 (1 failure).
-* `love_r24`, `love_gate`, `lovefix`, `loverender`: green, unchanged.
-
-## 1.3.3 — the Route 24 recruiter's Team Rocket face, restored
-
-Reported: "the previous attempt to fix the last trainer on Route 24 broke his
-portrait — it was displaying correctly when it showed the Team Rocket portrait."
-
-The face was never missing from the *resolution*. `speakerFor` names the
-recruiter and `artFor` hands back picture 109 in every build since the link
-existed. What went wrong is one step later: the box was resolved, and then
-**declined at the draw**.
-
-**The neutral-colour gate was taking his face off**
-
-A box's text colour is the engine's own answer to "is somebody speaking here?".
-The cart draws a person talking in dark blue or dark red, and narration, signs
-and item boxes in the plain black/grey *neutral* colour — so the mod's rule is
-"a neutral box gets no portrait". That rule is right, and it is why the Pewter
-Museum scientist and the Pewter City Nidoran each needed an explicit exception.
-
-The Route 24 recruiter needed the same one, for the same kind of reason. His
-script is
-
-```
-g3:08168620:  lock / faceplayer / prize box / call g3:081686b9
-g3:081686b9:  NUGGET box / "join TEAM ROCKET?" / trainerbattle 356 / post box
-```
-
-and it carries **no `textcolor` command anywhere**. The engine derives the
-colour from the object the script *selected* (`ctx.selectedLocalId`), and neither
-`lock` nor `faceplayer` selects one — they only read `VAR_LAST_TALKED` — so
-`selectedLocalId` stays empty for the whole conversation. The engine therefore
-drew **every one of his boxes neutral**, and the gate took the Rocket face off
-both the before-battle and the after-battle dialogue.
-
-The fix is one explicit `(map, graphic)` pair — `FR_ROUTE_24` graphic 25 — in
-the same exception table the scientist and the Nidoran already use. It names one
-map and one graphic, so no narration, sign or item box anywhere else is caught
-by it, and every other man wearing graphic 25 (whose entry is unchanged) is
-untouched.
-
-**How this was pinned**
-
-- `.probe/love_gate` — asks the mod's own gate the exact question `Message.show`
+* `.probe/love_gate` — asks the mod's own gate the exact question `Message.show`
   asks, with the engine's *real* `NEUTRAL` colour, for his before- and
-  after-battle boxes. Fails (3 checks) against 1.3.2; passes after the fix.
-- `dp3_speaker_test.lua` section 16d — 12 new checks: the exception exists, the
+  after-battle boxes. Fails (3 checks) without the exception; passes with it.
+* `dp3_speaker_test.lua` section 16d — 12 new checks: the exception exists, the
   gate allows both his boxes, the resolver still answers 109, and the rule
   itself still declines a neutral box that is **not** him (same map, other
   graphic; and same graphic, other map). Bites: removing the entry fails it.
-- `love3changes` §(3f) — drives the engine's real colour and asserts all three
-  of his boxes are allowed. Bites: 1.3.2 fails all three.
+* `tests/dp3_speaker_test.lua` §16e (NUGGET box, explicitly-neutral boxes) and
+  §16f (walk-past, staging op in a returned subroutine) — **+12 → 500 checks**.
+  Bites without the two fixes below: 5 failures (1 item-box, 4 walk-past).
+* `tests/dp3_load_test.lua`, `dp3_geometry_test.lua`, `dp3_menu_test.lua`,
+  `launcher_update_test.lua`: unchanged.
+* `.probe/love_r24flow` (NEW, 15 checks) — the NUGGET box at the gate with the
+  engine's real colour; bites the pre-fix build (1 failure).
+* `.probe/love_r24walk` (NEW, 19 checks) — the coord-event path with a real VM
+  and the route-24 bundle, parked on the pre-box row with the stub popped; bites
+  the pre-fix build (2 failures).
+* `.probe/love3changes` §(3f) and §(3g) — drives the engine's real colour for
+  all three of his boxes and the NUGGET box; **+4 → 79 checks**; bites the
+  pre-fix build (1 failure).
+* `love_r24`, `love_gate`, `lovefix`, `loverender`: green, unchanged.
 
 Nothing else changed: `GFX_ART[25]` is still 103 for every other man on the
 graphic, and pictures 49/50/87 still answer as before.
 
-## 1.3.2 — the portrait that vanished when a battle ended
+### The portrait that vanished when a battle ended, and the rest of the faces
 
 Two reports, two distinct causes, and both are fixed here. Each is pinned by a
 test that fails without its fix — in the unit suites *and* against the real
