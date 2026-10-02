@@ -2585,6 +2585,180 @@ local function neutralColourGateTests()
 end
 neutralColourGateTests()
 
+-- ------- 16e. the NUGGET box, and the two WAYS a box turns neutral
+--
+-- The (map, graphic) entry of 16d is right for the recruiter's own boxes but it
+-- is still an inference from the COLOUR, and there are TWO ways a box arrives
+-- NEUTRAL (adapters.resolveNpcColor):
+--
+--   * VAR_TEXT_COLOR was set to 3 by a `textcolor 3` row -- the cart SAYING
+--     "this is an item/narration box".  `std:9` (STD_RECEIVED_ITEM) does this as
+--     its FIRST row, so every " received a <ITEM>" box is explicitly neutral; or
+--   * VAR_TEXT_COLOR is still TEXT_COLOR_DEFAULT (255) and selectedLocalId is 0
+--     -- the cart UNABLE to name a speaker, not choosing neutral.
+--
+-- A (map, graphic) pair cannot see which way a box turned neutral, so on Route
+-- 24 it vouched for the recruiter's NUGGET box as well -- the player had just
+-- pressed him.  The report is "when he gives the Nugget, the dialogue box turns
+-- black/grey and the portrait should not be shown during that moment".
+--
+-- The fix reads the FACT behind the colour: an explicitly-set `textcolor` is the
+-- cart CHOOSING neutral, so the pair may not vouch for it.  Only the default
+-- path -- could not name the speaker -- is a person the pair may stand for.
+local function nuggetItemBoxTests()
+  io.write("-- the NUGGET item box, and explicitly-neutral boxes\n")
+
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+  local hadCtx = package.loaded["src.core.game3.scripting.ctx"]
+  local Ctx = require("src.core.game3.scripting.ctx")
+  package.loaded["src.core.game3.scripting.ctx"] = Ctx
+
+  local R24 = { localId = 1, graphicsId = 25, sprite = "SPRITE_POKEFAN_M",
+                trainerType = 1, scriptKey = "g3:08168620",
+                trainerId = 356, cellX = 10, cellY = 40 }
+  local NUGGET = " received a NUGGET\nfrom the mystery TRAINER!"
+  local PRE    = "Congratulations! You beat our five contest TRAINERS!"
+
+  -- A VM whose ctx carries a given text colour, and the press record set.
+  local function withColour(tc)
+    package.loaded["src.core.game3.scripting.space"] = {
+      vm = { isRunning = function() return true end,
+             ctx = { specialVars = { [Ctx.VAR_TEXT_COLOR] = tc },
+                     selectedLocalId = nil, stack = {} } },
+    }
+    Runtime.emit("map.entered", { mapId = "FR_ROUTE_24" })
+    X.forgetSpeaker()
+    Runtime.emit("world.trainer_engaged", { npc = R24, trainerId = 356, trainerClass = 1 })
+  end
+
+  ok(X.coloursAllowPortrait ~= nil, "the gate is exported")
+
+  -- THE BITE.  std:9 sets textcolor 3, so the item box is EXPLICITLY neutral.
+  withColour(3)
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 3 }, NUGGET), false,
+    "the NUGGET item box gets NO portrait (explicitly neutral)")
+
+  -- ...while his own boxes arrive on the DEFAULT path and keep their face.
+  withColour(Ctx.TEXT_COLOR_DEFAULT)
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 3 }, PRE), true,
+    "the recruiter's own box (default colour) still gets its portrait")
+
+  -- The colour the ENGINE hands over is 3 in both cases -- that is exactly why
+  -- the colour alone could not tell them apart.
+  local Adapters = package.loaded["src.core.game3.scripting.adapters"]
+  if Adapters and Adapters.resolveNpcColor then
+    eq(Adapters.resolveNpcColor({ specialVars = { [Ctx.VAR_TEXT_COLOR] = 3 },
+                                  selectedLocalId = 1 }, nil), 3,
+       "the engine draws the NUGGET box neutral")
+    eq(Adapters.resolveNpcColor({ specialVars = { [Ctx.VAR_TEXT_COLOR] = Ctx.TEXT_COLOR_DEFAULT },
+                                  selectedLocalId = 0 }, nil), 3,
+       "and the unselected person box neutral too -- the SAME colour")
+  end
+
+  -- The Pewter scientist is NOT an item box: he arrives on the default path, so
+  -- the guard leaves him alone.
+  withColour(Ctx.TEXT_COLOR_DEFAULT)
+  Runtime.emit("map.entered", { mapId = "FR_PEWTER_CITY_MUSEUM_1F" })
+  X.forgetSpeaker()
+  Runtime.emit("world.trainer_engaged",
+    { npc = { graphicsId = 55, scriptKey = "g3:0816a4ae" }, trainerId = 0, trainerClass = 0 })
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 3 }, "Ssh! Listen, I need to share a secret"), true,
+    "the museum scientist (default colour) is unaffected")
+
+  -- The Pewter Nidoran is the OTHER exception that must NOT be caught by the
+  -- explicit-colour guard: its script DOES set `textcolor 3` (g3:0816a749 row 1)
+  -- -- which is the very shape the guard declines.  It survives because its line
+  -- NAMES its own species, and TEXT_NAMES_A_SPECIES answers it ABOVE the pair.
+  Runtime.emit("map.entered", { mapId = "FR_PEWTER_CITY_HOUSE1" })
+  X.forgetSpeaker()
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 3 }, "NIDORAN\u{2642}: Bowbow!"), true,
+    "the Nidoran's explicitly-neutral line is still allowed (its text names it)")
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+  package.loaded["src.core.game3.scripting.ctx"] = hadCtx
+  X.forgetSpeaker()
+  Runtime.emit("map.entered", { mapId = "FR_ROUTE_8" })
+end
+nuggetItemBoxTests()
+
+-- ------- 16f. the WALK-PAST, where the staging op is in a RETURNED subroutine
+--
+-- The recruiter has NO line of sight (sight=0/trainerRange=0), so "walking past
+-- him" is not a sight engagement: two coordEvents on Nugget Bridge (10,15) and
+-- (11,15) start g3:08168660 / g3:0816866c, which goto g3:08168678.  That body
+-- turns him to face the player with `call_if <var> g3:081686fd`, and
+-- g3:081686fd is just applymovement localId=1 / waitmovement / return -- so the
+-- subroutine has RETURNED by the time the box opens, and a scan of the live
+-- script's rows alone found only the player's own applymovement 255.
+--
+-- The report is "when the player walks past him and he initiates the
+-- interaction, his dialogue box currently has no portrait at all".  The fix
+-- descends into call/call_if/callstd targets as the backward scan runs.
+local function walkPastStubTests()
+  io.write("-- the walk-past, with the staging op in a returned subroutine\n")
+
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+  local hadObjects = package.loaded["src.core.game3.objects"]
+
+  local npc = { sprite = "SPRITE_POKEFAN_M", graphicsId = 25, def = {},
+                scriptKey = "g3:08168620" }
+  package.loaded["src.core.game3.objects"] = {
+    find = function(id) if id == 1 then return npc end return nil end,
+  }
+  local space = {
+    vm = {
+      isRunning = function() return true end,
+      _scriptKey = "body",
+      ctx = { pc = { listKey = "body", index = 6 }, stack = {} },
+      scripts = {
+        -- the body: the stub has already returned, so the stack is empty
+        body = {
+          { op = "textcolor", color = 0 },
+          { op = "call_if", cond = 1, target = "stub" },
+          { op = "applymovement", localId = 0xFF },   -- the PLAYER: not an object
+          { op = "waitmovement" },
+          { op = "loadword", value = "g3:08188c3c" },
+          { op = "callstd", std = 4 },
+        },
+        -- the stub the body called: THIS is what stages the recruiter
+        stub = {
+          { op = "applymovement", localId = 1 },
+          { op = "waitmovement" },
+          { op = "return" },
+        },
+        ["std:4"] = { { op = "message", ptr = 0 } },
+      },
+    },
+  }
+  package.loaded["src.core.game3.scripting.space"] = space
+
+  X.forgetSpeaker()
+  local eo = X.sceneSpeaker()
+  ok(eo ~= nil, "the scene route names the recruiter from the RETURNED stub")
+  eq(eo and tonumber(eo.graphicsId), 25, "and it is graphic 25")
+
+  local sp = X.speakerFor("Congratulations! You beat our five contest TRAINERS!")
+  ok(sp ~= nil, "so the walk-past box names a speaker")
+  eq(sp and sp.scriptKey, "g3:08168620", "and it is the recruiter")
+
+  -- The descent must not INVENT a speaker: a script that stages nobody still
+  -- answers nobody.
+  space.vm.scripts.body = {
+    { op = "textcolor", color = 3 },
+    { op = "loadword", value = "g3:08188c3c" },
+    { op = "callstd", std = 4 },
+  }
+  space.vm.ctx = { pc = { listKey = "body", index = 3 }, stack = {},
+                   specialVars = { [0x8012] = 3 } }
+  X.forgetSpeaker()
+  eq(X.speakerFor("A plain box with nobody staged"), nil,
+    "a script that stages nobody (and no press) still names nobody")
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+  package.loaded["src.core.game3.objects"] = hadObjects
+end
+walkPastStubTests()
+
 -- ------- 17. the female psychic's graphic answers
 --
 -- OBJ_EVENT_GFX_WOMAN_1 (23) is the female PSYCHIC graphic.  The host names it

@@ -1,5 +1,76 @@
 # Changelog
 
+## 1.3.4 — the Nugget box goes bare, and the walk-past gets a face
+
+Reported, for the same Route 24 recruiter, after 1.3.3:
+
+> 1. When the player talks to him directly, his portrait appears correctly
+>    before and after the battle, but when he gives the Nugget, the dialogue
+>    box turns black/grey and the portrait should not be shown during that
+>    moment.
+> 2. When the player walks past him and he initiates the interaction, his
+>    dialogue box currently has no portrait at all; it should display his
+>    portrait properly.
+
+Both are the same trainer and both are one step away from the 1.3.3 fix. Only
+his code, and only the two dialogue flows named, are touched.
+
+### The Nugget box (the portrait that should NOT be there)
+
+1.3.3 restored his face with an explicit `(map, graphic)` exception in
+`NEUTRAL_COLOUR_PORTRAIT`. That exception is right for *his* boxes, but it is
+an inference from the **colour**, and there are two different ways a box arrives
+NEUTRAL (`adapters.resolveNpcColor`):
+
+* `VAR_TEXT_COLOR` was set to 3 by a `textcolor 3` row — the cart **choosing**
+  neutral for an item or narration box. Every `callstd 9` (STD_RECEIVED_ITEM)
+  does this as its **first row**, so every ` received a <ITEM>` box — including
+  his NUGGET box — is explicitly neutral; or
+* `VAR_TEXT_COLOR` is still the default (255) and `selectedLocalId` is 0 — the
+  cart **unable to name** a speaker, not choosing neutral.
+
+A `(map, graphic)` pair cannot see which way a box turned neutral, so on Route
+24 it vouched for the NUGGET box too (the player had just pressed him). The fix
+reads the fact **behind** the colour: an explicitly-set `textcolor` is the cart
+choosing neutral, so the pair may not vouch for it. The pair now only stands for
+a person whose box is neutral because *nothing selected them*.
+
+The museum scientist and the Nidoran are untouched: neither is an item box. (The
+Nidoran's script **does** set `textcolor 3`, but its line names its own species,
+so `TEXT_NAMES_A_SPECIES` answers it above this rule.)
+
+### The walk-past trigger (the portrait that was missing)
+
+The recruiter has **no line of sight** (`sight = 0`), so "walking past him" is
+not a sight encounter at all: two `coordEvents` on Nugget Bridge start
+`g3:08168660` / `g3:0816866c`, which `goto` `g3:08168678`. That body turns him to
+face the player with `call_if <var> g3:081686fd`, and `g3:081686fd` is just
+`applymovement localId=1 / waitmovement / return` — so the subroutine has
+**already returned** by the time the box opens, and a scan of the live script's
+rows found only the player's own `applymovement 255` (never a speaker). The box
+came out bare.
+
+The fix lets the scene route **descend into `call` / `call_if` / `callstd`
+targets** as its backward scan runs, so a staging op inside a returned
+subroutine still counts — it only ever *adds* an actor the script really named,
+and a depth bound stops a self-calling subroutine from looping. A script that
+stages nobody still answers nobody.
+
+### Proof
+
+* `tests/dp3_speaker_test.lua` §16e (NUGGET box, explicitly-neutral boxes) and
+  §16f (walk-past, staging op in a returned subroutine) — **+12 → 500 checks**.
+  Bites against 1.3.3: 5 failures (1 item-box, 4 walk-past).
+* `tests/dp3_load_test.lua`, `dp3_geometry_test.lua`, `dp3_menu_test.lua`,
+  `launcher_update_test.lua`: unchanged.
+* `.probe/love_r24flow` (NEW, 15 checks) — the NUGGET box at the gate with the
+  engine's real colour; bites 1.3.3 (1 failure).
+* `.probe/love_r24walk` (NEW, 19 checks) — the coord-event path with a real VM
+  and the route-24 bundle, parked on the pre-box row with the stub popped; bites
+  1.3.3 (2 failures).
+* `.probe/love3changes` §(3g) — **+4 → 79 checks**; bites 1.3.3 (1 failure).
+* `love_r24`, `love_gate`, `lovefix`, `loverender`: green, unchanged.
+
 ## 1.3.3 — the Route 24 recruiter's Team Rocket face, restored
 
 Reported: "the previous attempt to fix the last trainer on Route 24 broke his

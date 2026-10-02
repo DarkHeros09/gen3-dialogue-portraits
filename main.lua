@@ -2303,7 +2303,26 @@ return function(mod)
     -- scene came out bare.  Recency is what tells them apart, and it is also
     -- what the engine itself keys on: it derives the text colour from the
     -- object the script selected for the box (see the colour rule below).
-    local function nearest(key, from)
+    -- A STAGING OP INSIDE A CALLED SUBROUTINE STILL COUNTS.  The Route 24
+    -- recruiter's walk-past trigger is the case: the coord-event script
+    -- g3:08168678 turns him to face the player with
+    -- `call_if <var> g3:081686fd`, and g3:081686fd is just
+    -- `applymovement localId=1 / waitmovement / return` -- so the sub has
+    -- RETURNED (its frame popped) by the time row 8 opens the box.  Scanning the
+    -- live script's rows alone therefore found only the player's own
+    -- `applymovement 255` (rejected: 0xFF is the player), and the box came out
+    -- bare -- the report "when the player walks past him and he initiates the
+    -- interaction, his dialogue box currently has no portrait at all".
+    --
+    -- So a `call` / `call_if` / `callstd` row is DESCENDED INTO as the scan goes
+    -- backwards: the sub the script just ran staged whoever it staged, and that
+    -- object is the scene's actor exactly as if the op had stood inline.  This
+    -- only ever ADDS an actor the script really named -- a sub with no actor row
+    -- answers nothing -- and the depth bound stops a self-calling subroutine
+    -- from looping.  Depth stays small because these stubs are one level deep.
+    local function nearest(key, from, depth)
+      depth = depth or 0
+      if depth > 4 then return nil end
       local rows = vm.scripts and vm.scripts[key]
       if type(rows) ~= "table" then return nil end
       local start = tonumber(from) or #rows
@@ -2311,6 +2330,24 @@ return function(mod)
       for i = start, 1, -1 do
         local eo = actorAt(key, i)
         if eo then return eo end
+        -- The row did not itself stage anybody, but it may have CALLED a stub
+        -- that did.  Descend into that stub and scan it from its end, because
+        -- everything in it ran before this row.
+        local row = rows[i]
+        if type(row) == "table" then
+          local op = row.op
+          if op == "call" or op == "call_if" then
+            local target = row.target or row[1]
+            if type(target) == "string" then
+              local sub = nearest(target, nil, depth + 1)
+              if sub then return sub end
+            end
+          elseif op == "callstd" then
+            local target = "std:" .. tostring(row.std or row[1])
+            local sub = nearest(target, nil, depth + 1)
+            if sub then return sub end
+          end
+        end
       end
       return nil
     end
@@ -3373,9 +3410,60 @@ return function(mod)
     -- which is why that one scientist of the three kept no face.  The press is
     -- therefore not enough on its own -- the scene route is consulted too, and
     -- the (map, graphic) pair is the fact that decides, not the route that found
-    -- it.  Explicit (map, graphic), not a rule: one map, one graphic, so no
-    -- narration or item box anywhere else can be caught by it.
+    -- it.
+    --
+    -- THE PAIR ALONE IS STILL TOO BROAD, and the Route 24 recruiter is how that
+    -- was found.  There are TWO ways a box arrives NEUTRAL (see resolveNpcColor
+    -- in adapters.lua):
+    --
+    --   * `ctx.specialVars[VAR_TEXT_COLOR]` was set to 3 by a `textcolor 3` row
+    --     -- the cart SAYING "this box is an item/narration box" -- which is
+    --     what `std:9` (STD_RECEIVED_ITEM) does as its very first row, so EVERY
+    --     " received a <ITEM>" box in the game is explicitly neutral; or
+    --   * VAR_TEXT_COLOR is still TEXT_COLOR_DEFAULT (255) and
+    --     `ctx.selectedLocalId` is 0 -- the cart being UNABLE to name a speaker,
+    --     not choosing a neutral one.
+    --
+    -- A (map, graphic) pair can only see the resulting colour, so on Route 24 it
+    -- vouched for the recruiter's own boxes AND for his NUGGET box: the player
+    -- had just pressed him, the press record named graphic 25, and the pair then
+    -- matched the item box too -- so " received a NUGGET" wore his Team Rocket
+    -- face.  The report is "when he gives the Nugget, the dialogue box turns
+    -- black/grey and the portrait should not be shown during that moment".
+    --
+    -- The two ways are told apart by the FACT behind the colour, not the colour
+    -- itself: an explicit `textcolor 3` means the cart CHOSE neutral for this
+    -- box (an item box), while the default means the cart could not name its
+    -- speaker.  Only the second is a person the pair may vouch for, so a box the
+    -- cart explicitly coloured is declined however the pair matches.  This is
+    -- exactly the reported moment, and it leaves the museum scientist and the
+    -- Nidoran alone: neither is an item box, and both arrive on the default
+    -- path.  (The Nidoran's script DOES set `textcolor 3` -- g3:0816a749 row 1 --
+    -- but its line names its own species, so TEXT_NAMES_A_SPECIES answers it
+    -- above this function and it never depends on the pair at all.)
+    local function explicitlyNeutralBox()
+      local ok, Space = pcall(require, "src.core.game3.scripting.space")
+      if not ok or type(Space) ~= "table" then return false end
+      local vm = Space.vm
+      local ctx = type(vm) == "table" and vm.ctx or nil
+      local sv = type(ctx) == "table" and ctx.specialVars or nil
+      if type(sv) ~= "table" then return false end
+      local Ctx = package.loaded["src.core.game3.scripting.ctx"]
+        or require("src.core.game3.scripting.ctx")
+      local key = Ctx.VAR_TEXT_COLOR
+      local def = Ctx.TEXT_COLOR_DEFAULT
+      if key == nil then return false end
+      if def == nil then def = 255 end
+      local tc = sv[key]
+      -- Never set, or still the default: the cart did not choose a colour for
+      -- this box, so the neutrality is "could not name the speaker".
+      if tc == nil or tc == def then return false end
+      return true
+    end
     local function neutralButAPerson()
+      -- A box the cart EXPLICITLY painted neutral is not a person, however the
+      -- (map, graphic) pair matches -- the NUGGET item box on Route 24.
+      if explicitlyNeutralBox() then return false end
       local here = NEUTRAL_COLOUR_PORTRAIT[mapIdNow()]
       if not here then return false end
       for _, eo in ipairs({ pressSpeaker, sceneSpeaker() }) do
