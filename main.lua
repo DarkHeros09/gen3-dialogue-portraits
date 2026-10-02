@@ -525,10 +525,24 @@ local GFX_ART = {
   [23] = 138,            -- WOMAN_1 -> the female Psychic, the only class wearing it
 
   -- People the cart never drew a battle bust of.  Each of these was wearing
-  -- somebody else's face: a Fat Man the Fisherman's and a female Worker the
-  -- Scientist's.  No portrait is this mod's answer.
+  -- somebody else's face: a Fat Man the Fisherman's.
   [27] = false,          -- FAT MAN
-  [48] = false,          -- WORKER (F)
+  -- WORKER / lab aide (48), the figure in rom_sprites/overworld/ow_048.png.
+  --
+  -- This entry is the one CHANGE the report asked for here, and it REPLACES a
+  -- `false` that stood from 1.0.0.  Graphic 48 is the cart's own sprite for the
+  -- professor's lab aide -- the engine names it so in
+  -- src/core/game3/scripting/gfx_ids.lua ("OAK lab aide") -- and the picture is
+  -- plainly a young woman in office dress, not the male Scientist.  The host
+  -- renders it with SPRITE_SCIENTIST, so the sprite route told the SCIENTIST's
+  -- story for her; the old `false` was the author's answer ("the cart never drew
+  -- her"), and the report overrules it.  Picture 12 is the closest the cart
+  -- comes to her -- a woman in the same build -- so she is given that face
+  -- rather than none.  Keyed by the GRAPHIC, exactly like every other entry in
+  -- this table, so every wearer of graphic 48 (the aides across the labs and
+  -- offices, 51 objects by .probe/_gfx_sweep.py 48) wears it and no other
+  -- graphics id is touched.
+  [48] = 12,             -- OAK's lab aide / WORKER (F) -> pic 12, the SECRETARY
   [76] = false,          -- DAISY, the rival's sister -- see the note below
 
   -- MAN (25) was on that list and is not any more, for the same reason the
@@ -770,6 +784,16 @@ local NAME_ART = {
   -- the only thing that could answer and nothing was there to answer with.
   -- Picture 81 is the cart's captain bust.
   CAPTAIN       = 81,
+  -- SECRETARY is the label the report gives the lab aides who wear graphic 48
+  -- (ow_048).  The cart has no speaker label of that spelling -- a sweep of the
+  -- ROM's own dialogue finds no "SECRETARY: " anywhere -- so this entry is what
+  -- MAKES the label meaningful: a box that opens "SECRETARY: …" resolves through
+  -- the name route to picture 12, exactly as the graphic-keyed route resolves
+  -- the same person when the box names nobody.  The picture id is written
+  -- directly rather than as a class name, because 12 is a BEAUTY in the cart's
+  -- class table and naming "BEAUTY" here would tie the roster label to a class
+  -- the label has nothing to do with.
+  SECRETARY     = 12,
 }
 
 -- A (map, graphic) override for a named character the GENERATED per-map table
@@ -814,6 +838,52 @@ local PLACE_ART = {
   ["FR_CELADON_CITY_GAME_CORNER"] = { [47] = false },
 }
 
+-- ONE OBJECT, answered by its own script.
+--
+-- PLACE_ART above is a (map, graphic) pair, and that is the right grain for a
+-- person whose GRAPHIC is what has to be corrected -- a graphic is shared, and
+-- the map is what says which wearer is standing there.  It is the wrong grain
+-- for the case below, and it is the reason this table exists: it is ONE OBJECT
+-- on a map where the same graphic must keep its normal face everywhere else.
+--
+--   * the Route 24 Nugget recruiter wears graphic 25, the plain "MAN" graphic
+--     that many ordinary men across Kanto also wear, and only he is a disguised
+--     Team Rocket member.
+--
+-- Map or graphic cannot separate that, because the OTHER wearers of the same
+-- graphic stand on the SAME maps -- Route 24 has four real trainers on it.  The
+-- one fact that names a single object is the script key the engine itself
+-- assigns it (`Opcodes.key` = the object's own script pointer, `g3:%08x`), and it
+-- is already carried on the speaker descriptor (`speaker.scriptKey`) for the
+-- trainer-id route.  So an entry here is keyed by that, and it is read at the
+-- TOP of artFor where it can both ANSWER and DECLINE.
+--
+-- The value is either a front-picture id (or a name/class `viaMapping` accepts)
+-- to FORCE that face, or `false` to force NO portrait.  Either way it runs
+-- before every other route, so the object's own graphic and its neighbours are
+-- left exactly as they were.
+--
+-- A `false` used to stand here for the FIRST Giovanni, on the Rocket Hideout B4F
+-- (script g3:08161317), reading the report's "his dialogue must open with no
+-- portrait" as an instruction to remove his face.  That was the wrong reading
+-- and the report it produced was "Giovanni has no portrait": he is the villain
+-- of the scene, the box is HIS, and a bare box beside a named, drawn character
+-- is the bug, not the fix.  The entry is GONE.  Nothing replaces it -- with no
+-- object entry he falls through to GFX_ART[87] = 108, the same bust his Silph
+-- Co. 11F and Viridian Gym encounters use, so all three Giovannis agree.  The
+-- table keeps its other job: the Route 24 recruiter above answers picture 109.
+local OBJECT_ART = {
+  -- Route 24's Nugget Bridge recruiter (ROUTE_24 localId 1, graphic 25).  He is
+  -- the last trainer on the bridge and the one who hands over the NUGGET before
+  -- inviting the player to join Team Rocket -- a Rocket in a plain man's
+  -- clothes.  Graphic 25 is the host's SPRITE_POKEFAN_M, and GFX_ART[25] = 103
+  -- already answers it (the TAMER, the majority class wearing it) for every
+  -- other man; the report asks THIS man for a Rocket face, and picture 109 is
+  -- the cart's own male TEAM ROCKET bust (the same one GFX_ART gives graphic
+  -- 49).  Keyed by script, so no other man on graphic 25 changes.
+  ["g3:08168620"] = 109,   -- ROUTE_24 localId 1 -> TEAM ROCKET (M), pic 109
+}
+
 -- People the CART draws in the neutral text colour, so `coloursAllowPortrait`'s
 -- inference -- a neutral box is narration, a sign or an item box -- is wrong for
 -- them.  Explicit (map, graphic), and it exists for exactly one NPC.
@@ -832,6 +902,22 @@ local NEUTRAL_COLOUR_PORTRAIT = {
   -- shape as the scientist above: a person-shaped speaker the cart colours as
   -- narration.  One (map, graphic) pair, so the rule itself is untouched.
   ["FR_PEWTER_CITY_HOUSE1"] = { [123] = true },
+  -- Route 24's Nugget Bridge recruiter (graphic 25, ROUTE_24 localId 1) -- the
+  -- same man OBJECT_ART forces onto picture 109.  His script is
+  --   g3:08168620: lock / faceplayer / boxes… / call g3:081686b9 ; and
+  --   g3:081686b9: item box / message / trainerbattle 356 / post box
+  -- and it contains **no `textcolor` row anywhere**.  The engine derives a box's
+  -- colour from `ctx.selectedLocalId` (adapters.resolveNpcColor), and neither
+  -- `lock` nor `faceplayer` calls Ctx.selectObject -- they only read
+  -- VAR_LAST_TALKED -- so selectedLocalId stays nil for the WHOLE conversation,
+  -- resolveNpcColor returns NEUTRAL (3), and the gate took the Rocket face off
+  -- BOTH dialogues.  The report is "the previous attempt to fix the last trainer
+  -- on Route 24 broke his portrait -- it was displaying correctly when it showed
+  -- the Team Rocket portrait".  It was never the OBJECT_ART link that broke: the
+  -- face resolved (pic 109) but the COLOUR gate declined to draw it, exactly as
+  -- it did for the scientist and the Nidoran.  One (map, graphic) pair, so no
+  -- narration or item box anywhere else is caught by it.
+  ["FR_ROUTE_24"] = { [25] = true },
 }
 
 -- Boxes whose TEXT names their own speaker, matched as PLAIN SUBSTRINGS, with the
@@ -1134,6 +1220,27 @@ return function(mod)
   local spokeObject = nil
   local spokeCell = nil
 
+  -- True when the record on file was made by a line-of-sight ENGAGEMENT rather
+  -- than by an A press, and the script it promises has not started yet.
+  --
+  -- This is the Route 24 bug.  TrainerSight.engage (src/core/game3/
+  -- trainer_sight.lua) emits world.trainer_engaged and THEN walks the NPC toward
+  -- the player (`applymovement` rows run by the sight module itself); only when
+  -- that walk finishes does finishEngagement() call Sp.startScript.  So the walk
+  -- raises world.stepped with NO script running -- scriptRunning() is false by
+  -- construction -- and the guard below read that as the player walking away
+  -- from the conversation and dropped the record.  Every box of the encounter
+  -- then resolved to nil: no "wants to battle" face, and no face on the
+  -- post-battle speech either -- the reported "the trainer's dialogue portrait is
+  -- not displaying immediately after the battle ends".
+  --
+  -- The flag is what tells the guard the difference between a player who really
+  -- did walk off (section 10) and a trainer closing the distance before his own
+  -- script begins.  It is cleared the moment a script starts, by scriptRunning()
+  -- turning true on the very next check, and outright by forgetSpeaker() and by
+  -- the script's own end -- so it can never outlive the encounter it describes.
+  local engagementPending = false
+
   -- Set when the speaker of the last box walks off mid-conversation.  A press
   -- is dropped outright (pressSpeaker = nil), but the SCENE route would simply
   -- name the same object again on the next box -- the actor's applymovement
@@ -1163,7 +1270,36 @@ return function(mod)
     spokeObject = nil
     spokeCell = nil
     sceneGone = false
+    engagementPending = false
+    conversationScript = nil
   end
+
+  -- WHICH SCRIPT THE CONVERSATION IS, so `script.ended` can tell the end of the
+  -- conversation from the end of some OTHER script.  This is the Route 24 report.
+  --
+  -- `script.ended` is NOT the conversation's end.  The engine fires it for EVERY
+  -- VM that retires a script, and the one that matters here is the per-map
+  -- "run on resume / on return to field" script (src/core/game3/scripting/
+  -- space.lua: Space.runOnResume / runOnReturnToField -> run_immediately), which
+  -- the battle bridge runs the moment a trainer battle is over
+  -- (src/core/game3/battle_bridge.lua:321, `Space.returnToField`).
+  --
+  -- Two things make that fatal to a naive handler:
+  --
+  --   * run_immediately does NOT use the conversation's VM.  It spins up its own
+  --   (`immediate_vm()`, space.lua:291) and runs it to completion in a tight
+  --   loop (space.lua:326, `for _ = 1, 1024 do iv:tick() end`), so that script
+  --   retires while the conversation's own run is still ALIVE and paused at its
+  --   next `waitbuttonpress`.
+  --   * and its `script.ended` carries completed = true, because it really did
+  --     finish -- so the old `completed == false` guard let it straight through.
+  --
+  -- The event carries the retired script's own key (`payload.key`, stamped in
+  -- vm.lua:58 from `self._scriptKey`), which is the fact this needs: a script
+  -- end clears the record only when it IS this conversation's script.  Anything
+  -- else -- a map's onResume, an onReturnToField, another object's script -- is
+  -- somebody else's end and leaves the record alone.
+  local conversationScript = nil
 
   -- ------- the record ends when the script walks the speaker out
   --
@@ -1738,6 +1874,28 @@ return function(mod)
         or picArt(picForClass(classIdForName(mapped)))
     end
 
+    -- 0. THE OBJECT ITSELF, for the two cases no other grain can express.
+    --
+    --    `speaker.scriptKey` is the engine's own handle for ONE object's script
+    --    (`g3:%08x`), so an entry keyed by it names a single object and nothing
+    --    else -- not the graphic's other wearers, not the other objects standing
+    --    on the same map, and not the same character's other appearances.  It is
+    --    read FIRST because the report is about the object, and the answer is
+    --    either a forced face or a forced decline; see OBJECT_ART for the two
+    --    entries and why a (map, graphic) pair could not do either job.
+    --
+    --    A `false` returns nil here, which is artFor's own "no portrait" and the
+    --    same answer the sprite and graphic routes give for a person the cart
+    --    never drew.
+    if speaker.scriptKey ~= nil then
+      local forced = OBJECT_ART[speaker.scriptKey]
+      if forced == false then return nil end
+      if forced ~= nil then
+        local art = viaMapping(forced)
+        if art then return art end
+      end
+    end
+
     -- 1. the player's own art.  Three names are tried, most specific first:
     --    the name the dialogue used, the object's own sprite id, and finally
     --    the class's name -- so one CustomArt/HIKER.png can face every Hiker
@@ -1803,7 +1961,15 @@ return function(mod)
     --    about who is standing there, so his box does not get to hand off to a
     --    name it mentions.  It is one graphic, not a rule: every other graphic
     --    that answers still takes the name first.
-    local NAME_PROOF = { [27] = true }   -- FAT MAN: "ERIK: Where's SARA?"
+    --
+    --    THE LAB AIDE (48) joins him, for the same reason and because of this
+    --    release.  Graphic 48 used to DECLINE, so the guard above covered it
+    --    through GFX_ART[48] == false; this release gives it picture 12, so it
+    --    now ANSWERS -- and without this line the aide's own boxes would hand
+    --    off to any name they mention, which is the ERIK report all over
+    --    again.  Nothing else rides on the entry: it says only "this graphic is
+    --    a fact, its box may not hand off", which is now true of it.
+    local NAME_PROOF = { [27] = true, [48] = true }   -- FAT MAN; the lab aide
     local gfxDeclines = speaker.gfx ~= nil
       and (GFX_ART[speaker.gfx] == false or NAME_PROOF[speaker.gfx] == true)
       and not speaker.species
@@ -2066,10 +2232,26 @@ return function(mod)
   -- showing nobody is this mod's answer wherever the data does not decide.  A
   -- row whose id is not a live object (the player, a variable alias such as
   -- VAR_LAST_TALKED) resolves to nothing and is not counted.
+  --
+  -- ONLY movement and turning count.  `addobject` and `removeobject` were in
+  -- this set once and they do not belong: they PLACE and DELETE entities, they
+  -- do not stage a speaker.  The distinction matters because of the last-resort
+  -- sweep below, which reads the entry script from its END.  Giovanni's Hideout
+  -- script (RocketHideout_B4F g3:08161317) puts its two boxes at rows 6 and 12
+  -- and then, AFTER them, rows 15 `removeobject 1` and 16 `addobject 2` -- he
+  -- leaves and the Rocket who replaces him arrives.  With the staging ops in the
+  -- set, the end-first sweep named that replacement (graphic 92) for the
+  -- post-battle box, so Giovanni's "I see that you raise POKéMON with utmost
+  -- care" wore the wrong Rocket's face; the report is "giovanni ... before and
+  -- after battle dialogue has no portrait".  Measured over the whole game (see
+  -- dp3_actorop_reach / dp3_actorop_before): every script whose end-first sweep
+  -- picked a staging op picked one that sat AFTER the last box (the stage being
+  -- cleared) or belonged to a script with no dialogue at all -- not one was a
+  -- "place them, then they speak".  The cart stages a speaker by MOVING them,
+  -- never by adding or deleting them, so the staging ops are gone.
   local ACTOR_OPS = {
     applymovement = true, applymovementat = true, turnobject = true,
-    addobject = true, addobjectat = true, removeobject = true,
-    removeobjectat = true, setobjectxy = true, setobjectxyperm = true,
+    setobjectxy = true, setobjectxyperm = true,
   }
 
   local function sceneSpeaker()
@@ -2284,7 +2466,7 @@ return function(mod)
                object = eo }
     end
 
-    if not class and not sprite and not gfx then return nil end
+    if not class and not sprite and not gfx and not scriptKey then return nil end
     return { class = class, sprite = sprite, species = species, gfx = gfx,
              scriptKey = scriptKey, trainerId = trainerId, mapId = mapId,
              object = eo }
@@ -3417,6 +3599,27 @@ return function(mod)
     vanillaDraw()
   end
 
+  -- ------- which script an object owns
+  --
+  -- The engine keeps an object's entry-point script key on the object itself
+  -- (`eo.scriptKey`) and, for an object the map built but has not stamped, on
+  -- the definition it was built from (`eo.def.scriptKey`).  Both are read here
+  -- and nowhere else, so the handler that records a press and the handler that
+  -- recognises that press's script ending cannot disagree about the key.
+  --
+  -- It is the same pair speakerFor reads for its own `scriptKey` field, and it
+  -- has to be: `script.ended` stamps the RETIRED script's key (vm.lua:58, from
+  -- `self._scriptKey`), which is the object's entry point, not any of the
+  -- subroutines it `call`s on the way.
+  local function scriptKeyOf(eo)
+    if type(eo) ~= "table" then return nil end
+    local def = eo.def
+    local key = eo.scriptKey
+    if key == nil and type(def) == "table" then key = def.scriptKey end
+    if type(key) == "string" then return key end
+    return nil
+  end
+
   -- ------- the press
   mod.hooks:wrap("world.talk", function(next, game, eo)
     -- The hook fires only for a press that reached an object with a script, so
@@ -3432,6 +3635,12 @@ return function(mod)
     -- portrait".
     forgetSpeaker()
     pressSpeaker = eo
+    -- AND WHICH SCRIPT THIS CONVERSATION IS.  The press starts the object's own
+    -- script (field.lua:663, `Space.startScript(eo.def.scriptKey, lid, facingDir)`),
+    -- so `eo.def.scriptKey` is the key whose `script.ended` really is the end of
+    -- this conversation -- see conversationScript, and the handler at the foot
+    -- of this file for the foreign end that used to be mistaken for it.
+    conversationScript = scriptKeyOf(eo)
     return next(game, eo)
   end)
 
@@ -3471,6 +3680,17 @@ return function(mod)
     end
     forgetSpeaker()
     pressSpeaker = npc
+    -- WHICH SCRIPT THE PROMISED CONVERSATION WILL BE.  This is not a press, so
+    -- there is no world.talk to read the key off -- but the object is right
+    -- here, and the script the walk ends in is the object's own entry point
+    -- (trainer_sight.lua's finishEngagement calls Sp.startScript with the same
+    -- `eo.def.scriptKey` the press would use).  Taken BEFORE the shallow copy
+    -- below, so it is read off the engine's own object either way.
+    conversationScript = scriptKeyOf(npc)
+    -- AND THIS RECORD IS AN ENGAGEMENT, not a press.  The walk-up that follows
+    -- raises world.stepped before any script exists, and the guard below must
+    -- not read that as the player leaving; see engagementPending.
+    engagementPending = true
   end)
 
   -- Every way a conversation ends.  A step and a warp both leave the object
@@ -3509,12 +3729,65 @@ return function(mod)
   -- below), so nothing outlives the conversation.  This is the guard the Gen 2
   -- port has carried since 1.3.3 (`if not scriptRunning(gameRef) then
   -- forgetSpeaker() end`).
+  --
+  -- A LINE-OF-SIGHT ENGAGEMENT is the second case where no script is running
+  -- yet and the step is still not the player's own.  engage() walks the trainer
+  -- to the player BEFORE Sp.startScript, so scriptRunning() is false for the
+  -- whole walk and the guard used to clear the record there -- the Route 24
+  -- trainer's post-battle portrait, the report this fix answers.  While
+  -- engagementPending is set the record is kept for the same reason it is kept
+  -- during a script: the step belongs to the scene, not the player.  The flag
+  -- is cleared as soon as the promised script starts (the `scriptRunning()`
+  -- branch below clears it on the next step) and by every other way the
+  -- conversation can end, so a genuine walk-off still ends the record.
   mod.events:on("world.stepped", function()
-    if not scriptRunning() then forgetSpeaker() end
+    if scriptRunning() then
+      engagementPending = false   -- the promised script has arrived
+      return
+    end
+    if engagementPending then return end
+    forgetSpeaker()
   end)
   mod.events:on("map.entered", forgetSpeaker)
+  -- THE END OF THE CONVERSATION, and not the end of just ANY script.
+  --
+  -- `script.ended` is engine-wide: every VM that retires a script fires it, with
+  -- that script's own key.  The handler here used to clear the record on ANY
+  -- completed end, which is the reported bug for BOTH the Route 24 recruiter and
+  -- Giovanni: the moment a trainer battle is over, the battle bridge runs the
+  -- map's "on return to field" script
+  --   (src/core/game3/battle_bridge.lua:321, Space.returnToField ->
+  --    space.lua:334 runOnReturnToField -> :312 run_immediately)
+  -- and run_immediately runs it to COMPLETION on a VM of its own
+  -- (`immediate_vm()`, space.lua:291; `for _ = 1, 1024 do iv:tick() end`,
+  -- space.lua:326).  So it retires its script while the trainer's own script is
+  -- still ALIVE and paused at its next `waitbuttonpress`, and it fires
+  -- `script.ended` with completed = true -- which sailed straight through the
+  -- old `completed == false` guard and wiped the record.  The very next box --
+  -- the trainer's line right after the battle, the one the report names -- then
+  -- resolved to nobody and came out bare.
+  --
+  -- The key is the fact that tells the two apart.  vm.lua:58 stamps
+  -- `payload.key` with the retired script's own key (`self._scriptKey`), and the
+  -- conversation's key is the one its press or its engagement recorded
+  -- (conversationScript).  So the record is cleared only when the script that
+  -- ended IS this conversation's script; a map's onResume, an onReturnToField,
+  -- another object's script -- each is somebody else's end and leaves the record
+  -- alone.  See conversationScript above for the full mechanism.
+  --
+  -- When the key is unknown on either side -- an engine that does not stamp one,
+  -- or a conversation whose object carried no entry point -- the old behaviour
+  -- stands rather than the record leaking: an unknown foreign end clears, which
+  -- is the safe direction, and `conversationScript` nil still clears on the
+  -- conversation's own end (the `payload.key ~= conversationScript` test is
+  -- false when both are nil).  Only a KNOWN, DIFFERENT key holds the record.
   mod.events:on("script.ended", function(payload)
     if type(payload) == "table" and payload.completed == false then return end
+    if conversationScript ~= nil
+        and type(payload) == "table" and payload.key ~= nil
+        and payload.key ~= conversationScript then
+      return   -- somebody else's script retired; this conversation is still live
+    end
     forgetSpeaker()
   end)
 
@@ -3749,6 +4022,11 @@ return function(mod)
   mod.exports.nameFromText = nameFromText
   mod.exports.forgetSpeaker = forgetSpeaker
   mod.exports.crops = CROPS
+  -- The neutral-colour gate's own table, so the suite can pin the (map, graphic)
+  -- pairs it lets through -- one person per entry, never a rule.
+  mod.exports.NEUTRAL_COLOUR_PORTRAIT = NEUTRAL_COLOUR_PORTRAIT
+  -- The gate itself, so a test can ask the exact question Message.show asks.
+  mod.exports.coloursAllowPortrait = coloursAllowPortrait
   -- The script route's two halves, so the suite can assert the table against the
   -- pack rather than against itself: `scriptTrainerIds` is key -> trainer id and
   -- `picForId` is trainer id -> picture, and a test that only checked

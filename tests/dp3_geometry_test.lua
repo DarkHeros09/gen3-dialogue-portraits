@@ -3051,6 +3051,21 @@ function XF.cropWindowTests()
   eq(rect("141", 28), "17,12,32", "the Breeder's starts at his own artwork")
   -- RUIN MANIAC: head x 23-42 (centre 33), art from row 12 -> {17, 9}
   eq(rect("145", 31), "17,9,32", "and the Ruin Maniac's three rows higher")
+  -- PICTURE 12: head band x 22-47 (centre 34), first art row 3 -> {18, 0}.
+  -- This is the window this release added, for the lab aide (graphic 48).  What
+  -- put it here is the same rule as the three above -- the union of the widest
+  -- opaque run on each of the first 18 art rows, which for her is hair and FACE
+  -- and centres at 34.5.  The artwork's bbox (5..47) is NOT the head band: her
+  -- outstretched arm reaches to x 5, and centring on the bbox (x 10, an earlier
+  -- draft) pushed her face against the left edge of the frame.
+  eq(rect("12", 48), "18,0,32", "the lab aide's window is centred on her face")
+
+  -- PICTURE 108, GIOVANNI (graphic 87).  Here the head band and the held object
+  -- disagree, and the OBJECT wins: his Luxury Ball is x 14-20 and his throwing
+  -- hand reaches x 15, so the default {16,3,32} sliced the ball in half.  x 8
+  -- keeps it whole; y 1 keeps row 1, the top of his hair.  His head (x 28-41,
+  -- centre 34.5) is still fully inside the window.
+  eq(rect("108", 87), "8,1,32", "Giovanni's window keeps the Luxury Ball he holds")
 
   -- ...and nothing else in the table moved.
   eq(rect("144", 28), "16,3,32", "the Aroma Lady keeps the default window")

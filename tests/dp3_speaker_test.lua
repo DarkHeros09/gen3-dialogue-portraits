@@ -765,20 +765,28 @@ eq(asked.trainer[#asked.trainer], 90, "the cart's own HIKER picture, by graphics
 eq(X.artFor({ sprite = "SPRITE_POKEFAN_M" }).pic, 66,
    "where the sprite alone answers with the PokéFan's")
 
--- A `false` entry: a graphic the cart never drew a battle bust of.  The female
--- Worker is the shape of it -- the host maps graphic 48 onto SPRITE_SCIENTIST,
--- so the sprite route hands back the Scientist, which is the face she wore.
--- Declining has to close the SPRITE route too, or the host's guess comes
--- straight back.
+-- A graphic the cart gave a picture to by hand, keyed by the GRAPHIC so every
+-- wearer is reached.  This is the shape of the release's own change 1: graphic
+-- 48 is the cart's lab aide (the figure in ow_048), the host renders it with
+-- SPRITE_SCIENTIST, and the sprite route therefore told the SCIENTIST's story
+-- (107) for a woman.  Until this release the graphic DECLINED -- the author's
+-- "the cart never drew her" -- and the report overrules it, so the graphic now
+-- answers picture 12 and the sprite route may not.
 --
--- This block used graphic 27, the Fat Man, as its example until 1.2.3 gave him
--- the Collector's bust out of rom_sprites (see GFX_ART).  The rule is the same
--- one; only the example moved.
-eq(X.GFX_ART[48], false, "graphic 48 is the female Worker, whom the cart never drew")
+-- The block used graphic 27, the Fat Man, as its example until 1.2.3 gave him
+-- the Collector's bust out of rom_sprites (see GFX_ART), and graphic 48 until
+-- this release gave her picture 12.  The rule is the same one throughout; only
+-- the example moves.
+eq(X.GFX_ART[48], 12, "graphic 48 is the lab aide, and wears picture 12")
 eq(X.artFor({ sprite = "SPRITE_SCIENTIST" }).pic, 107,
    "the Scientist sprite alone still answers")
-eq(X.artFor({ sprite = "SPRITE_SCIENTIST", gfx = 48 }), nil,
-   "but her graphic declines it -- no portrait, not a Scientist's")
+eq(X.artFor({ sprite = "SPRITE_SCIENTIST", gfx = 48 }).pic, 12,
+   "but her own graphic outranks it -- the aide's face, not a Scientist's")
+-- The other wearer of the SAME host sprite must be untouched: graphic 55 is the
+-- cart's SCIENTIST proper (the man in the lab coat), and he keeps the 107 the
+-- sprite route gives him.
+eq(X.artFor({ sprite = "SPRITE_SCIENTIST", gfx = 55 }).pic, X.GFX_ART[55],
+   "and the SCIENTIST graphic proper is unchanged")
 
 -- And the same rule for a graphic the host table simply does not list: the
 -- sprite the object carries is the host's own fallback, so it says nothing
@@ -1512,9 +1520,29 @@ local function releaseTests()
   eq(asked.trainer[#asked.trainer], 26,
     "cut from the id's own picture, because an id outranks a class")
 
-  -- and the record still has an end, like every other way a box gets its speaker
+  -- And the record SURVIVES the walk-up that follows the engagement.
+  --
+  -- This is the half that used to be wrong, and the assertion below replaces
+  -- the one the earlier release carried ("and stepping away still clears it").
+  -- engage() walks the NPC to the player BEFORE Sp.startScript, so the steps
+  -- arrive with NO script running -- and the old guard read them as the player
+  -- leaving and cleared the record, which is why the encounter's later boxes
+  -- (the post-battle speech the report names) came out bare.  A step with an
+  -- engagement in flight is the SCENE's, exactly like a step inside a script.
   Runtime.emit("world.stepped", {})
-  eq(X.speakerFor("I like shorts!"), nil, "and stepping away still clears it")
+  ok(X.speakerFor("I like shorts!  They're comfy and easy to wear!") ~= nil,
+    "stepping toward the player during the engagement keeps the record")
+
+  -- ...and the record still has an end, like every other way a box gets its
+  -- speaker.  The engagement's own script starts, runs, and finishes.
+  local hadSpaceEng = package.loaded["src.core.game3.scripting.space"]
+  package.loaded["src.core.game3.scripting.space"] = {
+    vm = { isRunning = function() return true end, ctx = {}, scripts = {} },
+  }
+  Runtime.emit("world.stepped", {})          -- the promised script has arrived
+  package.loaded["src.core.game3.scripting.space"] = hadSpaceEng
+  Runtime.emit("script.ended", { completed = true })
+  eq(X.speakerFor("I like shorts!"), nil, "and the script's end still clears it")
 
   -- The class in the payload is a fallback for an object whose own trainerType
   -- has not been stamped yet, and a mod must not write on the world's object.
@@ -1678,20 +1706,29 @@ local function oneSpriteManyPeople()
   -- than by being reported: she says "DAISY:", and the pack's DAISY is a
   -- Painter on Five Island wearing picture 147.
   --
-  -- A `false` entry is the cart's own statement that this graphic's person has
-  -- no battle bust, so a token in their dialogue cannot make one exist.
+  -- A graphic the release DECLINED is the cart's own statement that this
+  -- graphic's person has no battle bust, so a token in their dialogue cannot
+  -- make one exist.
   --
   -- The example is the female Worker, not graphic 27: 1.2.3 gives the Fat Man
   -- the Collector's bust out of rom_sprites, so his graphic no longer declines
   -- and his own boxes resolve through it.
-  eq(X.GFX_ART[48], false,
-     "graphic 48 -- the female Worker -- is one the cart declined")
+  --
+  -- AND SINCE THIS RELEASE SHE IS A GRAPHIC THAT ANSWERS.  The report asks for
+  -- ow_048 -- this graphic, the cart's lab aide -- to wear picture 12, so
+  -- GFX_ART[48] is 12, not false.  The rule she now demonstrates is the OTHER
+  -- half of the same guard: a graphic that ANSWERS is a fact about who is
+  -- standing there, and a name its box mentions still may not overrule it --
+  -- because the name may belong to somebody else, which is the ERIK report.
+  -- See NAME_PROOF in main.lua.
+  eq(X.GFX_ART[48], 12,
+     "graphic 48 -- the lab aide -- answers picture 12, as the report asks")
   eq(X.picForName("ERIK"), 89, "and the pack really does know an ERIK")
   eq(X.artFor({ gfx = 48, sprite = "SPRITE_SCIENTIST",
-                name = "ERIK", fromText = true }), nil,
-     "but a declined graphic cannot be overruled by a name in the box")
+                name = "ERIK", fromText = true }).pic, 12,
+     "but the aide's own graphic outranks a name in the box")
   eq(X.GFX_ART[76], false,
-     "graphic 76 -- Daisy, the rival's sister -- likewise")
+     "graphic 76 -- Daisy, the rival's sister -- declines")
   eq(X.picForName("DAISY"), 147, "and the pack really does know a DAISY")
   -- Daisy is the one name in this block that DOES have art, because the cart
   -- drew her -- just not in its battle art.  She rides the Fame Checker route
@@ -2113,6 +2150,119 @@ local function sceneTests()
 end
 sceneTests()
 
+-- ------- 15b. placing an object is not staging a speaker
+--
+-- GIOVANNI'S HIDEOUT, and the half of the report the pipeline fix (16c) did not
+-- touch.  His script (RocketHideout_B4F g3:08161317) is:
+--   1 lock  2 faceplayer  3-4 setvar  5 special 371  6 message <pre-battle>
+--   7 waitmessage  8 playbgm  9 waitbuttonpress  10 trainerbattle 348 type=3
+--   11 loadword  12 callstd 4 <post-battle>  13 fadescreen  14 closemessage
+--   15 removeobject 1   <- GIOVANNI LEAVES
+--   16 addobject 2      <- THE ROCKET WHO REPLACES HIM
+--   17-24 clearflag/setflag/setvar/special/fadescreen/release/end
+-- The post-battle box is opened by a `callstd 4` std stub, so at the moment the
+-- box is up `ctx.pc` is std:4 (no actor rows) and the only frame on the stack is
+-- g3:08161317#13 -- the `fadescreen` row, PAST the message.  Neither scan can
+-- name anybody, so sceneSpeaker falls through to its LAST RESORT: read the entry
+-- script from its END.  With addobject/removeobject counted as actor ops, that
+-- end-first sweep hit row 16 `addobject 2` and answered the REPLACEMENT Rocket
+-- (graphic 92) for Giovanni's own farewell -- the reported "...has no portrait"
+-- (pic 92 has no entry that answers for this object, so the box drew bare).
+--
+-- The fix is that the staging ops are not actor ops.  The cart stages a speaker
+-- by MOVING or TURNING them (`applymovement`/`turnobject`/`setobjectxy`); it
+-- places and deletes entities for other reasons -- to clear a stage, to hand
+-- over an item, to swap a trainer for the one who follows.  Measured over the
+-- whole game (dp3_actorop_reach.lua): 21 scripts change, and in every single one
+-- the staging op the sweep picked sat AFTER the last box or belonged to a script
+-- with no dialogue at all -- not one of them was a real "place them, then they
+-- speak" (dp3_actorop_before.lua).
+local function stagingOpTests()
+  io.write("-- placing an object is not staging a speaker\n")
+
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+  local hadObjects = package.loaded["src.core.game3.objects"]
+
+  local giovanni = { sprite = "SPRITE_GIOVANNI", graphicsId = 87, localId = 1, def = {} }
+  local replacement = { sprite = "SPRITE_TEAM_ROCKET", graphicsId = 92, localId = 2, def = {} }
+  package.loaded["src.core.game3.objects"] = {
+    find = function(id)
+      if id == 1 then return giovanni end
+      if id == 2 then return replacement end
+      return nil
+    end,
+  }
+  -- The engine state the box actually runs in: a std stub on top, one frame
+  -- pointing at row 13 (fadescreen) of Giovanni's script, and the whole script
+  -- available by its own key.
+  local space = {
+    vm = {
+      isRunning = function() return true end,
+      ctx = { pc = { listKey = "std:4", index = 4 },
+              stack = { { listKey = "g3:08161317", index = 13 } } },
+      _scriptKey = "g3:08161317",
+      scripts = {
+        ["std:4"] = { { op = "message" }, { op = "waitmessage" },
+                      { op = "waitbuttonpress" }, { op = "return" } },
+        ["g3:08161317"] = {
+          { op = "lock" }, { op = "faceplayer" },
+          { op = "message", ptr = 0 }, { op = "waitmessage" },
+          { op = "trainerbattle", trainer = 348 },
+          { op = "loadword" }, { op = "callstd", std = 4 },
+          { op = "fadescreen" },            -- row 13 (1-based in the real script: 13)
+          { op = "closemessage" },
+          { op = "removeobject", localId = 1 },   -- Giovanni leaves
+          { op = "addobject", localId = 2 },      -- the replacement arrives
+          { op = "release" }, { op = "end" },
+        },
+      },
+    },
+  }
+  package.loaded["src.core.game3.scripting.space"] = space
+
+  -- With nothing pressed (the box is the script's own), the only candidate the
+  -- end-first sweep could reach is the staging op.  It must answer nobody...
+  X.forgetSpeaker()
+  eq(X.speakerFor("I see that you raise POKéMON with utmost care."), nil,
+     "a removeobject/addobject after the box names nobody, not the replacement")
+
+  -- ...and with Giovanni's press behind it (the real conversation), the press
+  -- stands, because the scene route has nothing to say.
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, giovanni)
+  local post = X.speakerFor("I see that you raise POKéMON with utmost care.")
+  ok(post ~= nil, "with the press behind it, the box keeps a speaker")
+  eq(post and post.gfx, 87, "and it is Giovanni's graphic, not the replacement's")
+  eq(X.artFor(post) and X.artFor(post).pic, 108,
+     "and his bust is the picture his graphic answers")
+
+  -- The same exclusion holds for the exact `addobject` shape -- an object is
+  -- PLACED after the box, and it is still not the speaker.
+  space.vm.scripts["g3:08161317"][10] = { op = "addobject", localId = 2 }
+  space.vm.scripts["g3:08161317"][11] = { op = "removeobject", localId = 1 }
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, giovanni)
+  local placed = X.speakerFor("A line after a placed object")
+  ok(placed ~= nil, "an addobject after the box is not a speaker, so the press stands")
+  eq(placed and placed.gfx, 87, "and it is still Giovanni")
+
+  -- A real MOVE outranks the press, exactly as before -- the exclusion is only
+  -- about placing/deleting, not about the movement idiom the scene route uses.
+  space.vm.scripts["g3:08161317"][10] = { op = "applymovement", localId = 2 }
+  space.vm.scripts["g3:08161317"][11] = { op = "release" }
+  space.vm.ctx = { pc = { listKey = "std:4", index = 4 },
+                   stack = { { listKey = "g3:08161317", index = 11 } } }
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, giovanni)
+  local moved = X.speakerFor("A line after a move")
+  ok(moved ~= nil, "a move before the box still names its object")
+  eq(moved and moved.gfx, 92, "even when a press on somebody else is on record")
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+  package.loaded["src.core.game3.objects"] = hadObjects
+end
+stagingOpTests()
+
 -- ------- 16. a step inside a script is not the player ending the conversation
 --
 -- The reported "some dialogue boxes lose the portrait partway through".  FRLG
@@ -2163,6 +2313,277 @@ local function stepGuardTests()
   package.loaded["src.core.game3.scripting.space"] = hadSpace
 end
 stepGuardTests()
+
+-- ------- 16b. a LINE-OF-SIGHT engagement keeps its record through the walk-up
+--
+-- The reported "the trainer's dialogue portrait is not displaying immediately
+-- after the battle ends".  The Route 24 recruiter does not wait for an A press:
+-- TrainerSight.engage (src/core/game3/trainer_sight.lua) sees the player, emits
+-- world.trainer_engaged -- which is where the mod records the speaker -- and
+-- THEN walks the NPC toward the player.  finishEngagement() calls Sp.startScript
+-- only after that walk, so for its whole duration NO script is running and
+-- scriptRunning() is false by construction.  The step the walk emits therefore
+-- reached the old guard's `not scriptRunning()` branch, which read it as the
+-- player walking away and cleared the record; every box of the encounter -- the
+-- "wants to battle" line and the post-battle speech -- then resolved to nil.
+--
+-- What this section has to pin, in order: that the engagement records the
+-- speaker (a); that the walk-up step does NOT clear it (b); that once the script
+-- arrives the record still survives the boxes and the scene steps inside it (c);
+-- and that a real walk-off -- a step with no script and no engagement pending --
+-- STILL ends it (d), so the fix is a distinction and not a blanket "never
+-- clear".  The trainer is the Route 24 recruiter, whose object entry the report
+-- also touches: pic 109.
+local function engagementStepTests()
+  io.write("-- a line-of-sight engagement keeps its record through the walk-up\n")
+
+  local R24 = { localId = 1, graphicsId = 25, sprite = "SPRITE_POKEFAN_M",
+                trainerType = 1, scriptKey = "g3:08168620",
+                trainerId = 356, cellX = 10, cellY = 40 }
+
+  local hadSpace = package.loaded["src.core.game3.scripting.space"]
+  local running = false
+  package.loaded["src.core.game3.scripting.space"] = {
+    vm = { isRunning = function() return running end, ctx = {}, scripts = {} },
+  }
+
+  -- (a) the sight module sees the player and names the object.
+  X.forgetSpeaker()
+  Runtime.emit("world.trainer_engaged",
+    { npc = R24, trainerId = 356, trainerClass = 1 })
+  local sp = X.speakerFor("I saw you! Let's battle!")
+  ok(sp ~= nil, "the engagement puts the trainer on record")
+  eq(sp and sp.trainerId, 356, "and names HIM, by the id the engine handed over")
+  eq(X.artFor(sp) and X.artFor(sp).pic, 109,
+     "and his own script answers the Rocket face, not the man's graphic")
+
+  -- (b) the walk-up: steps arrive while NO script is running.
+  Runtime.emit("world.stepped", {})
+  Runtime.emit("world.stepped", {})
+  ok(X.speakerFor("I saw you! Let's battle!") ~= nil,
+    "the walk-up's steps do not clear the engagement's record")
+
+  -- (c) the promised script starts; the boxes and its scene steps keep it.
+  running = true
+  Runtime.emit("world.stepped", {})                   -- a step inside the script
+  ok(X.speakerFor("I saw you! Let's battle!") ~= nil,
+    "and once the script starts its own steps keep it too")
+  -- The post-battle box: the script ends, and the NEXT script is the speech.
+  -- completed == false is the hand-off, so the record survives the boundary.
+  Runtime.emit("script.ended", { completed = false })
+  local post = X.speakerFor("With your ability, you'd become a top leader")
+  ok(post ~= nil, "the post-battle box still finds him across the script hand-off")
+  local postArt = post and X.artFor(post)
+  eq(postArt and postArt.pic, 109, "and still draws his own face, not a bare box")
+
+  -- (d) a real walk-off still ends it.  No script, no engagement pending.
+  running = false
+  Runtime.emit("script.ended", { completed = true })
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, PIKACHU_EO)
+  ok(X.speakerFor("Pika pika!") ~= nil, "a plain press is on record")
+  Runtime.emit("world.stepped", {})
+  eq(X.speakerFor("Pika pika!"), nil,
+    "and a step after a press -- no engagement -- still ends it")
+
+  package.loaded["src.core.game3.scripting.space"] = hadSpace
+end
+engagementStepTests()
+
+-- ------- 16c. the end of the conversation, and not the end of ANY script
+--
+-- THE REPORTED BUG, and the one 16b did NOT catch.  16b proved the record
+-- survives an engagement's walk-up and a hand-off (completed = false), and it
+-- passed -- yet both reports still came back: "giovanni in team rocket hideout
+-- before and after battle dialogue has no portrait" and "the last trainers in
+-- route 24 has no portrait right after battle".
+--
+-- The missing fact is that `script.ended` is ENGINE-WIDE.  It fires for every VM
+-- that retires a script, with that script's own key -- and the moment a trainer
+-- battle ends, the battle bridge runs the map's "on return to field" script
+--   (src/core/game3/battle_bridge.lua:321, Space.returnToField ->
+--    space.lua:334 runOnReturnToField -> :312 run_immediately)
+-- on a VM OF ITS OWN (`immediate_vm()`, space.lua:291), spinning it to
+-- completion in a tight loop (space.lua:326, `for _ = 1, 1024 do iv:tick() end`).
+-- So that foreign script retires WHILE the trainer's own script is still alive
+-- and paused at its next `waitbuttonpress`, firing `script.ended` with
+-- completed = true -- which is exactly the shape 16b drilled, and which the old
+-- handler read as the conversation being over.  The next box -- the line right
+-- after the battle, the one both reports name -- resolved to nobody and drew
+-- bare.
+--
+-- The key is the fact that separates them: vm.lua:58 stamps `payload.key` with
+-- the retired script's own key, and the conversation's key is the one its press
+-- (world.talk, from `eo.def.scriptKey`) or its engagement (world.trainer_engaged,
+-- from the object's own scriptKey) recorded.  This section pins all of it:
+-- (a) a press records the object's script key; (b) a FOREIGN end with that
+-- script still live does NOT clear; (c) the conversation's OWN end DOES clear;
+-- (d) an end with no key at all still clears (the old, safe behaviour); and
+-- (e) the same foreign-end immunity holds for an engagement, which is the Route
+-- 24 shape.
+local function foreignEndTests()
+  io.write("-- the end of a script that is not this conversation\n")
+
+  -- (a) A press on a scripted object records that object's script.
+  --
+  -- The subject is GIOVANNI in the Team Rocket Hideout B4F -- the exact object
+  -- the report names -- and his script is the one the mod's OBJECT_ART and
+  -- GFX_ART[87] both answer for.  The text is a plain line that names NOBODY,
+  -- so the only thing that can put a speaker on record is the press itself: a
+  -- "GIOVANNI: ..." would resolve through the text's own name route and every
+  -- assertion below would pass even if the record were dropped -- the trap that
+  -- let this bug ship past 16b.
+  local GIO = { graphicsId = 87, sprite = "SPRITE_GIOVANNI",
+                scriptKey = "g3:08161317" }
+  local LINE = "So! I must say, I am impressed!"
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, GIO)
+  ok(X.speakerFor(LINE) ~= nil, "a press on Giovanni is on record, with his key")
+
+  -- (b) THE BUG.  The battle bridge's immediate VM retires the map's own
+  -- onReturnToField while Giovanni's conversation script (g3:08161317) is still
+  -- running.  completed = true is the shape that used to clear the record, and
+  -- clearing it here is why his box right after the battle came out bare.
+  Runtime.emit("script.ended", { completed = true, key = "g3:08161000" })
+  ok(X.speakerFor(LINE) ~= nil,
+    "a FOREIGN script ending (an onReturnToField) does NOT end his conversation")
+  eq(X.artFor(X.speakerFor(LINE)) and X.artFor(X.speakerFor(LINE)).pic, 108,
+    "and his face is still the bust his graphic answers")
+
+  -- Even a second foreign end -- the map script and its subroutines -- is
+  -- harmless, so the immunity is not a one-shot.
+  Runtime.emit("script.ended", { completed = true, key = "g3:08169999" })
+  Runtime.emit("script.ended", { completed = true, key = "std:4" })
+  ok(X.speakerFor(LINE) ~= nil, "and neither do two more foreign ends")
+
+  -- (c) HIS own script ending DOES end it.
+  Runtime.emit("script.ended", { completed = true, key = "g3:08161317" })
+  eq(X.speakerFor(LINE), nil,
+    "his OWN script ending still clears the record")
+
+  -- (d) An end that names no key at all is "unknown", and unknown clears --
+  -- the old behaviour, kept because clearing too much is the safe direction and
+  -- an engine that does not stamp a key must not leak the record.
+  X.forgetSpeaker()
+  Runtime.call("world.talk", function() end, {}, GIO)
+  Runtime.emit("script.ended", { completed = true })
+  eq(X.speakerFor(LINE), nil, "an end with no key counts as the conversation's")
+  Runtime.emit("script.ended", {})
+  eq(X.speakerFor(LINE), nil, "and a payload with no verdict is over, as before")
+
+  -- (e) THE ROUTE 24 SHAPE.  A line-of-sight trainer records his script key the
+  -- same way, and the post-battle foreign end must not clear him either.
+  local R24 = { localId = 1, graphicsId = 25, sprite = "SPRITE_POKEFAN_M",
+                trainerType = 1, scriptKey = "g3:08168620",
+                trainerId = 356, cellX = 10, cellY = 40 }
+  X.forgetSpeaker()
+  Runtime.emit("world.trainer_engaged",
+    { npc = R24, trainerId = 356, trainerClass = 1 })
+  ok(X.speakerFor("I saw you! Let's battle!") ~= nil,
+    "the Route 24 recruiter is on record from his engagement")
+  -- The battle ends: the bridge runs the map's onReturnToField on its own VM.
+  Runtime.emit("script.ended", { completed = true, key = "g3:08169000" })
+  local post = X.speakerFor("With your ability, you'd become a top leader!")
+  ok(post ~= nil, "the post-battle box still finds him past the foreign end")
+  eq(X.artFor(post) and X.artFor(post).pic, 109,
+    "and it draws the Rocket face the object entry promises")
+  -- ...and his own script ending still ends the conversation.
+  Runtime.emit("script.ended", { completed = true, key = "g3:08168620" })
+  eq(X.speakerFor("With your ability, you'd become a top leader!"), nil,
+    "his own script ending still ends the conversation")
+end
+foreignEndTests()
+
+-- ------- 16d. the NEUTRAL-COLOUR gate, and the Route 24 recruiter
+--
+-- The reported "the previous attempt to fix the last trainer on Route 24 broke
+-- his portrait -- it was displaying correctly when it showed the Team Rocket
+-- portrait".  The OBJECT_ART link was never the thing that broke: `speakerFor`
+-- and `artFor` name the recruiter and hand back picture 109 in every build.  The
+-- face never reached the SCREEN because `Message.show`'s third gate,
+-- `coloursAllowPortrait`, declined the box.
+--
+-- The recruiter's script is  lock / faceplayer / boxes… / call g3:081686b9, and
+-- it carries NO `textcolor` row.  The engine derives a box's colour from
+-- ctx.selectedLocalId (adapters.resolveNpcColor), and neither `lock` nor
+-- `faceplayer` calls Ctx.selectObject -- they only read VAR_LAST_TALKED -- so
+-- selectedLocalId stays nil for the whole conversation, the engine draws every
+-- box NEUTRAL (3), and the gate took his face off BOTH dialogues.  A neutral box
+-- is normally narration/a sign/an item box, so the rule is right; the fix is the
+-- same explicit (map, graphic) exception the Pewter scientist and the Nidoran
+-- already use, and it is the ONE seam that can answer this.
+local function neutralColourGateTests()
+  io.write("-- the neutral-colour gate, and Route 24\n")
+
+  -- (a) the table carries the recruiter's (map, graphic) pair.
+  eq(type(X.NEUTRAL_COLOUR_PORTRAIT), "table", "the gate's exception table is exported")
+  eq(X.NEUTRAL_COLOUR_PORTRAIT["FR_ROUTE_24"] ~= nil, true,
+    "Route 24 has an entry")
+  eq(X.NEUTRAL_COLOUR_PORTRAIT["FR_ROUTE_24"][25], true,
+    "for graphic 25 -- the recruiter")
+
+  -- (b) THE BITE.  The gate is a real function and the suite asks it the exact
+  -- question Message.show asks.  Without the entry this is false and the box is
+  -- drawn BARE, which is the shipped bug.
+  local R24 = { localId = 1, graphicsId = 25, sprite = "SPRITE_POKEFAN_M",
+                trainerType = 1, scriptKey = "g3:08168620",
+                trainerId = 356, cellX = 10, cellY = 40 }
+  -- The two box texts the report names: the prize line BEFORE the battle and the
+  -- recruitment line AFTER it.  Both name nobody, so the press is the only fact.
+  local PRE  = "Congratulations! You beat our five contest TRAINERS!"
+  local POST = "With your ability, you'd become a top leader in TEAM ROCKET"
+
+  Runtime.emit("map.entered", { mapId = "FR_ROUTE_24" })
+  X.forgetSpeaker()
+  Runtime.emit("world.trainer_engaged", { npc = R24, trainerId = 356, trainerClass = 1 })
+  ok(X.coloursAllowPortrait ~= nil, "the gate is exported")
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 3 }, PRE), true,
+    "the BEFORE-battle box is allowed a portrait despite the neutral colour")
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 3 }, POST), true,
+    "and so is the AFTER-battle box")
+
+  -- (c) ...and the speaker/art still resolve, so the allowed box draws 109.
+  local sp = X.speakerFor(PRE)
+  eq(sp and sp.scriptKey, "g3:08168620", "the before-battle box names the recruiter")
+  eq(X.artFor(sp) and X.artFor(sp).pic, 109, "on the Rocket face")
+  local postSp = X.speakerFor(POST)
+  eq(X.artFor(postSp) and X.artFor(postSp).pic, 109,
+    "and the after-battle box draws the Rocket face too")
+
+  -- (d) THE RULE ITSELF IS UNTOUCHED: a neutral box that is NOT one of the
+  -- exceptions is still declined, so narration, signs and item boxes stay bare.
+  Runtime.emit("map.entered", { mapId = "FR_ROUTE_24" })
+  X.forgetSpeaker()
+  -- the same map, a different graphic -- a plain object, not the recruiter
+  Runtime.emit("world.trainer_engaged",
+    { npc = { graphicsId = 103, scriptKey = "g3:08160000" }, trainerId = 999, trainerClass = 1 })
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 3 }, "A sign says: ROUTE 24"), false,
+    "a neutral box on the same map that is NOT the recruiter is still declined")
+
+  -- (e) ...and another man on graphic 25 OUTSIDE Route 24 is not caught either:
+  -- the entry is a (map, graphic) pair, not the graphic alone.
+  Runtime.emit("map.entered", { mapId = "FR_ROUTE_25" })
+  X.forgetSpeaker()
+  Runtime.emit("world.trainer_engaged",
+    { npc = { graphicsId = 25, scriptKey = "g3:08170000" }, trainerId = 999, trainerClass = 1 })
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 3 }, "A hiker hums."), false,
+    "a graphic-25 object on another map is not caught by the Route 24 entry")
+
+  -- (f) a NON-neutral box is allowed everywhere, as before -- the gate only ever
+  -- speaks about the neutral colour.
+  Runtime.emit("map.entered", { mapId = "FR_ROUTE_24" })
+  X.forgetSpeaker()
+  Runtime.emit("world.trainer_engaged", { npc = R24, trainerId = 356, trainerClass = 1 })
+  eq(X.coloursAllowPortrait({ frame = "dialogue", npcColor = 1 }, PRE), true,
+    "a male-coloured box is still allowed")
+
+  -- LEAVE NO STATE BEHIND: the press record and the map both outlive this
+  -- section otherwise, and the name-route sections below would then see Route 24
+  -- as "here" with a leaked press on the recruiter's key.
+  X.forgetSpeaker()
+  Runtime.emit("map.entered", { mapId = "FR_ROUTE_8" })
+end
+neutralColourGateTests()
 
 -- ------- 17. the female psychic's graphic answers
 --
@@ -2405,6 +2826,43 @@ eq(X.artFor({ gfx = 28, mapId = "FR_VIRIDIAN_CITY_SCHOOL" }).pic, 144,
   "while a map that is not filed keeps the graphic's own answer")
 eq(X.artFor({ gfx = 28, mapId = "FR_FIVE_ISLAND_RESORT_GORGEOUS" }).pic, 146,
   "and the outdoor map keeps the generated table's 146")
+
+-- ------- 23. the FIRST Giovanni is not faceless
+--
+-- A previous release read the report's "his dialogue must open with no portrait"
+-- as an instruction to REMOVE Giovanni's face, and put a `false` into OBJECT_ART
+-- against his script key g3:08161317 (the Rocket Hideout B4F, localId 1).  That
+-- was the bug, and the report it produced was the plain one -- "Giovanni has no
+-- portrait".  He is the villain of the scene: the box is HIS, he is named and
+-- drawn, and a bare box is the defect.  The entry is gone, so he falls through
+-- to GFX_ART[87] = 108 -- the same bust his Silph Co. 11F and Viridian Gym
+-- encounters use.
+--
+-- The checks below pin the OUTCOME (all three Giovannis agree) rather than the
+-- absence of a table entry, so the fix holds even if OBJECT_ART is rearranged:
+-- the object's own script key resolves 108, and it resolves 108 by the graphic
+-- route too, so nothing but an explicit, deliberate object entry could change
+-- him.  The Route 24 recruiter's 109 is checked beside it, because the same
+-- mechanism that used to decline Giovanni is what forces the recruiter's face --
+-- the fix REMOVED one reading of it, it did not break the other.
+io.write("-- the first Giovanni keeps his face\n")
+eq(X.GFX_ART[87], 108, "graphic 87 answers the cart's Giovanni bust, 108")
+local function pic(desc) local a = X.artFor(desc) return a and a.pic end
+local g1 = pic({ gfx = 87, class = 83, scriptKey = "g3:08161317" })
+eq(g1, 108, "so the Rocket Hideout Giovanni's own script key draws his face")
+eq(g1 ~= nil, true, "and the box is not bare")
+-- His neighbours are the reason the key is SCOPED rather than a graphic-wide
+-- rule: the two later Giovannis are different objects and must be unchanged.
+eq(pic({ gfx = 87, class = 83, scriptKey = "g3:0816b3a1" }), 108,
+  "the Silph Co. 11F Giovanni, a different object, is unchanged")
+eq(pic({ gfx = 87, class = 83 }), 108,
+  "and so is the graphic route, for any other wearer")
+-- The Route 24 recruiter's forced face is the OTHER half of OBJECT_ART.
+eq(pic({ gfx = 25, sprite = "SPRITE_POKEFAN_M",
+         scriptKey = "g3:08168620", trainerId = 356 }), 109,
+  "the Route 24 recruiter still answers the Rocket face, by his own script")
+eq(X.artFor({ gfx = 25, sprite = "SPRITE_POKEFAN_M", trainerId = 361 }).pic, 103,
+  "while the same graphic on another man keeps the Tamer's 103")
 
 do
   -- ------- the Mt Moon scientist, and a scene that moves a Pokemon

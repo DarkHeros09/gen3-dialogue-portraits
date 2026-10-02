@@ -1,5 +1,141 @@
 # Changelog
 
+## 1.3.3 — the Route 24 recruiter's Team Rocket face, restored
+
+Reported: "the previous attempt to fix the last trainer on Route 24 broke his
+portrait — it was displaying correctly when it showed the Team Rocket portrait."
+
+The face was never missing from the *resolution*. `speakerFor` names the
+recruiter and `artFor` hands back picture 109 in every build since the link
+existed. What went wrong is one step later: the box was resolved, and then
+**declined at the draw**.
+
+**The neutral-colour gate was taking his face off**
+
+A box's text colour is the engine's own answer to "is somebody speaking here?".
+The cart draws a person talking in dark blue or dark red, and narration, signs
+and item boxes in the plain black/grey *neutral* colour — so the mod's rule is
+"a neutral box gets no portrait". That rule is right, and it is why the Pewter
+Museum scientist and the Pewter City Nidoran each needed an explicit exception.
+
+The Route 24 recruiter needed the same one, for the same kind of reason. His
+script is
+
+```
+g3:08168620:  lock / faceplayer / prize box / call g3:081686b9
+g3:081686b9:  NUGGET box / "join TEAM ROCKET?" / trainerbattle 356 / post box
+```
+
+and it carries **no `textcolor` command anywhere**. The engine derives the
+colour from the object the script *selected* (`ctx.selectedLocalId`), and neither
+`lock` nor `faceplayer` selects one — they only read `VAR_LAST_TALKED` — so
+`selectedLocalId` stays empty for the whole conversation. The engine therefore
+drew **every one of his boxes neutral**, and the gate took the Rocket face off
+both the before-battle and the after-battle dialogue.
+
+The fix is one explicit `(map, graphic)` pair — `FR_ROUTE_24` graphic 25 — in
+the same exception table the scientist and the Nidoran already use. It names one
+map and one graphic, so no narration, sign or item box anywhere else is caught
+by it, and every other man wearing graphic 25 (whose entry is unchanged) is
+untouched.
+
+**How this was pinned**
+
+- `.probe/love_gate` — asks the mod's own gate the exact question `Message.show`
+  asks, with the engine's *real* `NEUTRAL` colour, for his before- and
+  after-battle boxes. Fails (3 checks) against 1.3.2; passes after the fix.
+- `dp3_speaker_test.lua` section 16d — 12 new checks: the exception exists, the
+  gate allows both his boxes, the resolver still answers 109, and the rule
+  itself still declines a neutral box that is **not** him (same map, other
+  graphic; and same graphic, other map). Bites: removing the entry fails it.
+- `love3changes` §(3f) — drives the engine's real colour and asserts all three
+  of his boxes are allowed. Bites: 1.3.2 fails all three.
+
+Nothing else changed: `GFX_ART[25]` is still 103 for every other man on the
+graphic, and pictures 49/50/87 still answer as before.
+
+## 1.3.2 — the portrait that vanished when a battle ended
+
+Two reports, two distinct causes, and both are fixed here. Each is pinned by a
+test that fails without its fix — in the unit suites *and* against the real
+engine, driving the real decoded scripts.
+
+**A battle ending no longer steals the portrait from the box after it**
+
+Reported twice — "Giovanni in Team Rocket Hideout, before and after battle, has
+no portrait", and "the last trainer on Route 24 has no portrait right after the
+battle". Same defect in both: the speaker was on record going into the fight,
+and a bare box came out of it.
+
+The cause is a script end that is not the conversation's. When a trainer battle
+finishes, the battle bridge runs the map's own "return to field" script, and it
+runs it to completion on a *separate* virtual machine — one spun up and driven
+inside the same frame, while the trainer's own script is still alive and paused
+at its next line. That foreign script retires and reports itself finished, and
+the mod took any finished script as the end of the conversation and forgot who
+was talking. The very next box — the line right after the battle, the one both
+reports name — then had nobody behind it.
+
+A script end now only ends the conversation when the script that ended *is* the
+conversation's own. Anything else — the map's return-to-field script, a
+subroutine, another character's script — is somebody else's ending and leaves
+the portrait alone.
+
+**Giovanni's farewell no longer wears the wrong Rocket's face**
+
+The other half of the Giovanni report, and a separate fault with a separate
+cause. His Hideout script shows two boxes and then, *after* them, removes him
+from the map and adds the Rocket who replaces him. When a box is opened through
+a called subroutine there are no actor rows before it to read, so the mod fell
+back to scanning the whole script — and it scanned from the *end*, where the
+"remove Giovanni, add the replacement" pair sits. It named the replacement for
+Giovanni's own parting line, and picture 92 answers nothing for that object, so
+the box came out bare.
+
+Placing an object and deleting an object are not the same act as staging a
+speaker. The cart stages a speaker by *moving* or *turning* them; it adds and
+removes objects to clear a stage, hand over an item, or swap one character for
+another. Only moving and turning now count, so the objects a scene merely places
+or deletes can no longer be mistaken for the person talking. Measured across the
+whole game: not one script used an add/remove as a genuine "place them, then
+they speak", and every script whose fallback answer changes is one where the
+fallback was wrong.
+
+**Giovanni's portrait is framed on the ball he holds**
+
+Now that his picture is reachable, the default trainer window was cutting it in
+half. Picture 108 draws Giovanni holding up a Luxury Ball, and the ball sits to
+the *left* of his head — so a window centred on his face pushed the ball out of
+frame and showed a clipped half-ball beside his shoulder. Picture 108 now has a
+window of its own that keeps the whole ball, his throwing hand, and his face.
+
+**The trainer who challenges you keeps his face**
+
+A line-of-sight trainer does not wait for a press. He sees you, and the engine
+walks him over before it starts his script. Those steps arrive while no script
+is running, and the mod read them as you walking away — so it forgot who was
+talking and the "wants to battle" line came out bare.
+
+The walk is now recognised for what it is: while a trainer is on his way to you
+the record is held, and it is still cleared the moment the conversation really
+ends.
+
+**The lab aide is framed on her face**
+
+The aide who wears graphic 48 shows picture 12, and her window was measured
+across the whole artwork — which includes the arm she holds out. That pulled the
+frame eight pixels to the left and cut into her face. The window is now taken
+from her head, the way every other entry in the table is, and she sits centred in
+the frame.
+
+**Giovanni shows his face**
+
+A previous release read "his dialogue must open with no portrait" as an
+instruction to remove Giovanni's portrait, and did. That was the bug: the box is
+*his*, he is named and drawn, and a bare box beside him is the defect. His
+portrait is back, from his first line in the Team Rocket Hideout through what he
+says after you beat him, and all three of his encounters now use the same bust.
+
 ## 1.3.0 — portraits for the people who were missing them
 
 This release is about faces. Several characters were talking to you with no

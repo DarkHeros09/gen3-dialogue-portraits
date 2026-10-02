@@ -229,6 +229,27 @@
 --
 -- and `pairs` is first because it is the only one of the four that is a
 -- statement about a PERSON inside a picture rather than about the picture.
+--
+-- ------- 1.9.7: Giovanni, and the ball the default window cut in half
+--
+-- Picture 108 is GIOVANNI (see main.lua's GFX_ART[87]).  He needed no entry
+-- until he could be reached at all, and once he could the default trainer
+-- window {16, 3, 32} was plainly wrong for him -- not by the fill-percentage
+-- rule above, which he passes, but by the one thing that rule cannot see: the
+-- window sliced the LUXURY BALL he is holding clean in two.  Measured off the
+-- cart's own tr_108: the ball occupies x 14-20 of rows 12-18, and his extended
+-- throwing hand reaches x 15 at row 17, while the window began at x 16 -- one
+-- pixel short of the ball's left edge, so the panel showed a clipped half-ball
+-- floating beside his shoulder.
+--
+-- His head is x 28-41 (centre 34.5), which is well right of the ball, so a
+-- window centred on the head -- the rule that governs every other entry -- would
+-- have moved the ball further out of frame, not in.  The head band and the held
+-- object disagree here, and for THIS picture the object is the point: the ball
+-- is what makes the bust recognisably Giovanni's.  x 8 keeps the ball whole with
+-- six pixels to spare and still holds the entire head with room above it, so
+-- that is the entry.  y 1 keeps row 1, the top of his hair, which {16, 3, 32}
+-- also cut.
 
 return {
   -- The framing rule, applied to every portrait that has no entry of its own.
@@ -466,6 +487,22 @@ return {
     -- 89, 97 and 107 are here because they are the pictures the earlier
     -- releases used without ever framing them: the Mt Moon Super Nerd, the old
     -- man, and the Scientist.  75 is the old bald man 1.2.3 moved graphic 33 to.
+    --
+    -- 12 is this release's: the report asks for graphic 48 -- the cart's lab
+    -- aide, the figure in ow_048.png -- to wear picture 12, and until now no
+    -- window existed for it, so the aide's portrait would have taken the
+    -- default {16,3,32}.  The default frames her HIGH -- it leaves her chin
+    -- unshown and puts her eyes above the panel's centre -- so the window below
+    -- is her own, measured by the same rule as the rest.
+    --
+    -- Her head band is x 22-47: the widest opaque run on each of the first 18
+    -- art rows, unioned, is her hair and face, and it CENTRES AT 34.5, so x =
+    -- 34 - 16 = 18.  (The artwork's own bbox runs 5..47 because her outstretched
+    -- ARM reaches left to x 5 -- measuring the bbox instead of the head band is
+    -- what an earlier draft did, giving x 10, and it sliced her face against the
+    -- frame's left edge.  The rule is on the HEAD for exactly this reason.)
+    -- First opaque row is 3, so y = 3 - 3 = 0.
+    ["12"] = { 18, 0, 32 },   -- bbox (5,3)-(47,62);  head x 22-47 -- the lab aide
     ["18"] = { 20, 3, 32 },   -- bbox (15,6)-(56,62);  head x 19-54
     ["33"] = { 10, 3, 32 },   -- bbox (7,6)-(57,62);   head x 13-40
     ["46"] = { 23, 0, 32 },   -- bbox (12,3)-(49,62);  head x 29-49
@@ -475,6 +512,7 @@ return {
     ["89"] = { 20, 0, 32 },   -- bbox (21,3)-(50,63);  head x 23-50
     ["97"] = { 17, 8, 32 },   -- bbox (7,11)-(50,62);  head x 23-44
     ["107"] = { 17, 1, 32 },  -- bbox (8,4)-(56,62);   head x 12-55
+    ["108"] = { 8, 1, 32 },   -- bbox (12,1)-(49,63);  head x 28-41 -- GIOVANNI
     ["109"] = { 11, 1, 32 },  -- bbox (13,4)-(52,62);  head x 15-40 -- TEAM ROCKET
   },
 
