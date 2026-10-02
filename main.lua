@@ -1022,6 +1022,69 @@ return function(mod)
   local FrlgFont = require("src.ui.game3.frlg_font")
   local Display  = require("src.core.game3.display")
 
+  -- Pokemon Emerald support, in its own tree (emerald/init.lua).  Loaded
+  -- UNCONDITIONALLY -- it is pure functions plus one lazy table read -- but it
+  -- never changes an FRLG answer: every call into it is guarded by
+  -- Emerald.isEmeraldId(gameId()) first.  A failure to load it must not break
+  -- FRLG, so it degrades to a stub that reports "not Emerald".
+  --
+  -- Read through the mod's own reader (mod:read + load), NOT require():
+  -- a mod's files are not on package.path -- the same reason art/crops.lua and
+  -- art/trainer_ids.lua are read this way below.
+  local Emerald
+  do
+    local readMod = function(rel) return mod:read(rel) end
+    local ok, source = pcall(readMod, "emerald/init.lua")
+    if ok and type(source) == "string" then
+      local chunk = load(source, "@" .. tostring(mod.path) .. "/emerald/init.lua")
+      if chunk then
+        local ok2, value = pcall(chunk)
+        if ok2 and type(value) == "table" then Emerald = value end
+      end
+    end
+    if type(Emerald) ~= "table" then
+      Emerald = {
+        isEmeraldId = function() return false end,
+        detectGameId = function() return nil end,
+        canDrawPortraits = function() return false end,
+        artFor = function() return nil, "emerald module unavailable" end,
+      }
+    end
+    -- Hand the module the engine's require, this mod's reader and its logger,
+    -- so it never has to reach for an ambient global.  The reader is what lets
+    -- it load emerald/trainer_ids.lua the same way this file loads
+    -- art/trainer_ids.lua.  bind() is idempotent.
+    if type(Emerald.bind) == "function" then
+      pcall(Emerald.bind, { require = require, log = mod.log, read = readMod })
+    end
+  end
+
+  -- The running game id, asked once and cached: GameVersion cannot change
+  -- mid-process (it is set at boot from the launcher's column choice), and the
+  -- resolver asks this per box.  Falls back to the game3 service owner, which
+  -- is what gameOf() already reads.
+  local _gameIdCache
+  local function gameId()
+    if _gameIdCache ~= nil then return _gameIdCache end
+    _gameIdCache = Emerald.detectGameId() or false
+    return _gameIdCache
+  end
+
+  -- One diagnostic line per boot for the Emerald path, so a player on an
+  -- Emerald cart learns ONCE why the box is bare rather than every box.
+  local _emeraldWarned = false
+  Emerald.warnedOnce = function()
+    if _emeraldWarned then return false end
+    _emeraldWarned = true
+    return true
+  end
+
+  -- Is this boot an Emerald one?  Exported so the suite can prove the gate
+  -- opens on Emerald and stays shut on FireRed/LeafGreen.
+  local function isEmeraldBoot()
+    return Emerald.isEmeraldId(gameId())
+  end
+
   -- Optional: the FRLG graphics-id table.  It is what says whether a host
   -- SPRITE_* was the engine's own mapping or its fallback (see GFX_ART above);
   -- without it, the sprite route behaves as it always did rather than
@@ -1861,6 +1924,38 @@ return function(mod)
   -- { name =, class =, species =, sprite =, rival = }.
   local function artFor(speaker)
     if type(speaker) ~= "table" then return nil end
+
+    -- ------- Pokemon Emerald: an isolated path, and not an FRLG one
+    --
+    -- Every table below this line is FireRed/LeafGreen data -- FRLG script
+    -- keys, the FRLG graphics-id space, the FRLG map spellings, the FRLG
+    -- trainer class vs picture spaces.  On an Emerald cart those name the
+    -- WRONG person or nobody, and a wrong face is worse than none (the mod's
+    -- own rule in the header).  So an Emerald boot is answered HERE, from the
+    -- Emerald module, and never falls through to an FRLG table.
+    --
+    -- On FireRed and LeafGreen this branch is not taken: Emerald.gameId() is
+    -- not an Emerald id, and not one byte of FRLG behaviour changes.  See
+    -- emerald/init.lua for what the Emerald path does today, and why.
+    do
+      local id = gameId()
+      if Emerald.isEmeraldId(id) then
+        -- force = true: the game has ALREADY been established right here, so
+        -- the resolver does not need to ask again.  It is belt and braces --
+        -- artFor refuses on a non-Emerald boot by default -- but passing it
+        -- keeps the one authoritative game check at this call site and makes
+        -- the double-check explicit rather than incidental.
+        local art, why = Emerald.artFor(speaker, { force = true })
+        if art then return art end
+        if why and Emerald.warnedOnce then
+          -- One line per boot, not one per box: an Emerald player should learn
+          -- once why the box is bare, not be spammed every conversation.
+          Emerald.warnedOnce()
+          mod.log:info("dialogue portraits: %s", why)
+        end
+        return nil
+      end
+    end
 
     -- A mapped value is a picture id, a sprite id that means a person, or a
     -- class name.  A NUMBER is already the first of those -- it is how the
@@ -4204,6 +4299,36 @@ return function(mod)
   mod.exports.readChoice = readChoice
   mod.exports.writeChoice = writeChoice
   mod.exports.cycleChoice = cycleChoice
+
+  -- ------- Pokemon Emerald (isolated path)
+  --
+  -- Exported so the suite can prove three things without a live Emerald boot:
+  --   * the Emerald module loaded and bound;
+  --   * isEmeraldBoot() is true for the Emerald id and FALSE for firered /
+  --     leafgreen / anything else -- the regression guard for every other game;
+  --   * artFor() declines with a diagnostic on an Emerald boot instead of
+  --     returning an FRLG table's wrong face.
+  mod.exports.Emerald = Emerald
+  mod.exports.isEmeraldBoot = isEmeraldBoot
+  mod.exports.emeraldGameId = gameId
+  -- The Emerald resolver's own surface, exported so the suite can drive it
+  -- directly and prove it answers from EMERALD data on an Emerald boot and
+  -- declines with a reason elsewhere -- without needing a live Emerald session.
+  --
+  -- `force = true` is threaded through here too, because a SUITE that drives
+  -- this export has its own way of establishing the game (a stubbed
+  -- GameVersion); without it the export would refuse on every boot whose id is
+  -- not emerald, which is the resolver's own correct default and not what a
+  -- harness wants to observe.
+  mod.exports.emeraldTrainerIdFor = function(speaker)
+    return Emerald.trainerIdFor(speaker)
+  end
+  mod.exports.emeraldArtFor = function(speaker, opts)
+    return Emerald.artFor(speaker, opts or { force = true })
+  end
+  mod.exports.emeraldTrainerIds = function()
+    return Emerald.trainerIds()
+  end
 
   mod.log:info("dialogue portraits (gen 3) installed")
 end
