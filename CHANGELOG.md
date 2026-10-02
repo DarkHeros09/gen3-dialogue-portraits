@@ -1,5 +1,65 @@
 # Changelog
 
+## 1.3.2 — Pokémon Emerald gets the same portraits, from the same art the cart already draws
+
+Gen 3 is three carts, not two. This build teaches the mod to run on **Emerald**
+as well as FireRed and LeafGreen, and stops it from silently answering a
+FireRed question on an Emerald boot.
+
+### Emerald is a third cart, not an FRLG with a different header
+
+The mod's port is FRLG-shaped: its sprite table, its trainer class numbers, its
+map art and its crop windows were all cut from `Pokemon_FireRed.gba`. Emerald's
+overworld graphics ids, its trainer-class ids and its 239-graphic table are all
+*their own* number spaces — a FRLG class number used on Emerald names a
+different person, and a FRLG graphics id used on Emerald names a different
+sprite. Falling through to FRLG on an Emerald boot would therefore not be
+"missing art": it would be **the wrong face on the right person**.
+
+So Emerald answers its own questions. `emerald/init.lua` is an Emerald resolver
+with its own identifiers:
+
+* **the cart is detected by its own facts** — gamecode `BPEE` and sha1
+  `f3ae088181bf583e55daf962a92bb46f4f1d07b7` — not by the host's game id alone,
+  so an Emerald ROM is recognised even under a generic identity;
+* **it refuses to answer off-cart.** `artFor` returns nothing unless the boot is
+  really Emerald (`opts.force` is a probe/self-test escape hatch only), so an
+  Emerald answer can never be produced on a FireRed or LeafGreen run;
+* **its trainer index is its own**, `emerald/trainer_ids.lua` — 523 script-key
+  → trainer-id rows, generated from the cart — consulted before any FRLG table.
+
+Where the mod used to have one route that happened to be FRLG, it now has a
+game gate at the top: FireRed and LeafGreen keep the exact code paths they had
+(no regression), and Emerald runs its own. The menu work is untouched.
+
+### The Emerald sprite assets, in the same shape as the FireRed ones
+
+`pokemon-emerald-assets/` has been reorganised so it holds the Emerald PNGs with
+the *same structure, naming and format* as the existing `rom_sprites/` tree:
+
+* `overworld/ow_NNN.png` — **239** object sprites, 8-bit RGBA, first frame at the
+  cart's own graphic id;
+* `trainers/tr_NNN.png` — **93** trainer battle front pictures, 64x64 RGBA;
+* `raw/ow_NNN.rgba` and `raw/tr_NNN.rgba` — the same assets with a `WxH` header
+  (the overworld files carry the whole stacked frame sheet, as in `rom_sprites/`);
+* `manifest.tsv` — 332 rows, `kind  id  name  used  reference  width  height`;
+* `unused.tsv` — the 89 overworld graphics no map object wears;
+* `REPORT.md` — how the assets were cut and what "unused" means.
+
+The reshape is re-runnable:
+`python .probe/dp3_emerald_sprites_to_romsprites.py`, and its output is checked
+byte-for-byte against the `rom_sprites` scheme by
+`python .probe/dp3_emerald_assets_parity.py` (`RESULT: PASS`).
+
+### Named diagnostics, not silence
+
+Asking the Emerald resolver for art it cannot give returns a *reason*, not a
+bare nil: a missing engine module, a missing generated table, or a missing
+trainer pack each get their own message, so a blank portrait on an Emerald boot
+says which of the three it was. The resolver caches the trainer pack **only on
+success**, so a first call that finds nothing does not poison the rest of the
+session — the same defect that once froze the FRLG index empty.
+
 ## 1.3.1 — the Route 24 recruiter: his face back, the Nugget box left bare, and the walk-past given one
 
 This is the first build of the Route 24 recruiter work that is meant for
