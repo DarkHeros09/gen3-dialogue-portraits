@@ -204,6 +204,63 @@ Two 1.3.2 mappings were also **corrected**, not merely extended:
   `isEmeraldBoot()` is false, the Emerald path declines, and the FRLG resolver
   answers all four probes unchanged.
 
+### The six reported follow-ups
+
+Reported against the first Emerald build, in order:
+
+> * prof.brich has no portrait
+> * scientist with prof.birch has the wrong portrait
+> * fat guy has wrong portrait
+> * may's mom has the wrong portrait
+> * pokecenter nurse should not have a portrait
+> * bug hunter portrait need frame adjusting
+
+Each was fixed by measurement, and each fix is pinned by a probe. All six live in
+the two Emerald routes the report reached: `emerald/gfx_art_people.lua` (the
+hand-authored table that answers ahead of both majorities) and
+`emerald/crops.lua` (the crop windows).
+
+* **prof.birch (graphic 64) had no portrait.** The hand table declined him
+  (`[64] = false`). Emerald's 93 pictures hold **no lab-coat bust** — there is no
+  PROFESSOR class on the cart at all — so the nearest honest answer is the young
+  man in picture **24**, the same bust the mod already gives a kneeling Winstrate.
+  `[64] = 24`.
+* **the scientist beside him (graphic 46) was wrong.** The majority had filed
+  `gfx_art.lua [46] = 1` with the comment `TEAM AQUA x1` — one mis-keyed Aqua
+  trainer gave every scientist the grunt's face, the classic single-vote defect.
+  The first correction tried picture 16 (Ruin Maniac) but **his magnifier hides
+  the face**; it now takes picture **70**, a young man in a white coat with a
+  clear face. `[46] = 70`.
+* **the fat guy (graphic 17) was wrong** — `[17] = 2` (Pokémon Breeder) read as a
+  slim woman. Now `[17] = 0`, the HIKER, whose build matches the overworld
+  sprite.
+* **may's mom (graphic 215) had no portrait** — declined like Birch. She now
+  takes picture **15**, the AROMA LADY, the one motherly bust in the set.
+  `[215] = 15`.
+* **the pokécenter nurse (graphic 58) should not have one** — she was drawing
+  picture 82. The report is right: a nurse is a function, not a face, and the
+  cart draws no nurse bust. `[58] = false`.
+* **the bug hunter's frame (picture 73) was centred on his net.** Not a mapping
+  fault — a *measurement* fault. `dp3_emerald_crop_measure.py` finds the topmost
+  substantial opaque run and centres on it; when a **held prop** is the topmost
+  art that band is the net, not the head. **60 of the 93 pictures** have a
+  degenerate one-row head band for this reason. The affected windows are
+  corrected by eye in `.probe/dp3_emit_emerald_crops.py`'s `OVERRIDE`:
+  `73 → 20,16`, `30 → 16,4`, `54 → 8,2`, each commented
+  `-- CORRECTED by eye (scan read a prop, not the head)`.
+
+`tests/dp3_emerald_test.lua` now **141 checks, 0 failures**: section 6d pins
+`people[17]==0`, `people[64]==24`, `people[215]==15`, `people[46]==70`,
+`people[58]==false`, and a new sub-section asserts the three corrected windows
+(`win("73")=="20,16"`, `win("30")=="16,4"`, `win("54")=="8,2"`).
+
+`.probe/drivers/dp3_emerald_report6.lua` is the re-runnable proof: it asks the
+build what it resolves for the seven reported graphics and prints the picture,
+the crop window **and which table answered**, and the class picture the cart
+itself would use — so the fix is checked against the cart, not against the fix.
+Measured: PROF_BIRCH→24, SCIENTIST_1→70, FAT_MAN→0, MOM→15, NURSE→*(declined)*,
+BUG_CATCHER→73 at window `20,16`.
+
 ## 1.3.1 — the Route 24 recruiter: his face back, the Nugget box left bare, and the walk-past given one
 
 This is the first build of the Route 24 recruiter work that is meant for

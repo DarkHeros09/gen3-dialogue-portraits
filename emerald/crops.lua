@@ -67,7 +67,7 @@ return {
     ["27"] = { 12, 1, 32 },  -- head starts row 3
     ["28"] = { 14, 4, 32 },  -- head starts row 6
     ["29"] = { 17, 16, 32 },  -- head starts row 18
-    ["30"] = { 15, 9, 32 },  -- head starts row 11
+    ["30"] = { 16, 4, 32 },  -- CORRECTED by eye (scan read a prop, not the head)
     ["31"] = { 20, 2, 32 },  -- head starts row 4
     ["32"] = { 20, 1, 32 },  -- head starts row 3
     ["33"] = { 22, 6, 32 },  -- head starts row 8
@@ -89,7 +89,7 @@ return {
     ["51"] = { 12, 7, 32 },  -- head starts row 9
     ["52"] = { 16, 4, 32 },  -- head starts row 6
     ["53"] = { 17, 13, 32 },  -- head starts row 15
-    ["54"] = { 0, 2, 32 },  -- head starts row 4
+    ["54"] = { 8, 2, 32 },  -- CORRECTED by eye (scan read a prop, not the head)
     ["55"] = { 16, 9, 32 },  -- head starts row 11
     ["56"] = { 13, 1, 32 },  -- head starts row 3
     ["57"] = { 18, 0, 32 },  -- head starts row 2
@@ -107,7 +107,7 @@ return {
     ["70"] = { 17, 5, 32 },  -- head starts row 7
     ["71"] = { 11, 6, 32 },  -- head starts row 8
     ["72"] = { 11, 6, 32 },  -- head starts row 8
-    ["73"] = { 32, 10, 32 },  -- head starts row 12
+    ["73"] = { 20, 16, 32 },  -- CORRECTED by eye (scan read a prop, not the head)
     ["74"] = { 17, 5, 32 },  -- head starts row 7
     ["75"] = { 18, 1, 32 },  -- head starts row 3
     ["76"] = { 18, 0, 32 },  -- head starts row 1

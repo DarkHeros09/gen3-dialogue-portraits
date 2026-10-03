@@ -591,7 +591,7 @@ do
     eq(people[7], 53, "people: BOY_1 -> YOUNGSTER 53, not the Sailor")
     eq(people[9], 53, "people: BOY_2 -> YOUNGSTER 53")
     eq(people[15], 23, "people: RICH_BOY -> RICH BOY 23, not the Sailor")
-    eq(people[17], 2, "people: FAT_MAN -> BREEDER 2, not the Sailor")
+    eq(people[17], 0, "people: FAT_MAN -> HIKER 0 (the round build), not the woman in pic 2")
     eq(people[18], 52, "people: POKEFAN_F -> POKéFAN 52, not the Sailor")
     eq(people[47], 77, "people: LASS -> LASS 77, not Psychic 34")
     eq(people[55], 0, "people: HIKER -> HIKER 0, not Ruin Maniac 16")
@@ -600,6 +600,31 @@ do
     eq(people[30], false, "people: OLD_WOMAN declines -- the cart drew no old-woman bust")
     eq(people[22], false, "people: EXPERT_F declines for the same reason")
     eq(people[21], 9, "people: EXPERT_M -> EXPERT 9 (the old man)")
+    -- the reported fixes: the family, the lab, and the nurse who must NOT be drawn
+    eq(people[64], 24, "people: PROF_BIRCH -> a closest-build bust 24, not nil")
+    eq(people[215], 15, "people: MOM -> AROMA LADY 15, not nil")
+    eq(people[46], 70, "people: SCIENTIST_1 -> the white-coat bust 70, not the Team Aqua grunt 1")
+    eq(people[58], false, "people: NURSE declines -- the cart drew no nurse bust")
+  end
+end
+
+-- (c) the three windows the automatic head scan misframed are corrected, and the
+-- corrected values are the ones the build cuts with.  This is the BUG CATCHER
+-- report: the scan centred on the butterfly net, so the boy's face was outside
+-- the window; the fix moves it to 20,16.
+do
+  local f = io.open(MOD_ROOT .. "/emerald/crops.lua", "rb")
+  local src = f and f:read("*a"); if f then f:close() end
+  local crops = src and load(src, "@emerald/crops.lua")
+  crops = crops and crops()
+  if type(crops) == "table" and type(crops.trainers) == "table" then
+    local function win(p)
+      local t = crops.trainers[p]
+      return t and t[1] .. "," .. t[2]
+    end
+    eq(win("73"), "20,16", "cropE: BUG CATCHER 73 -> the head, not the net (was 32,10)")
+    eq(win("30"), "16,4",  "cropE: pic 30 corrected off the hat brim")
+    eq(win("54"), "8,2",   "cropE: pic 54 corrected off the outstretched arm")
   end
 end
 

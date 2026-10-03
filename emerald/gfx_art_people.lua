@@ -97,7 +97,9 @@ return {
   -- a single spurious vote, and POKEFAN_M/WOMAN_2 to a near-miss.  Each decided
   -- by eye against the overworld front frame (.probe/_em_final2.png).
   [16] = 20,             -- WOMAN_1   (x15) woman, green  -> pic 20, not the Sailor
-  [17] = 2,              -- FAT_MAN   (x29) the round man -> pic 2 (POKéMON BREEDER), not the Sailor
+  [17] = 0,              -- FAT_MAN   (x29) the round man -> pic 0 (HIKER), the cart's
+                         --   one stocky rounded build -- reported.  The old value, pic 2,
+                         --   is a young woman in red and read as the wrong person.
   [18] = 52,             -- POKEFAN_F (x43) the fan girl -> pic 52 (POKéFAN), not the Sailor
   [25] = 52,             -- POKEFAN_M (x23) the fan boy  -> pic 52 (POKéFAN), not 51
   [20] = 20,             -- WOMAN_2   (x49) woman, green  -> pic 20 (COOLTRAINER), not Aroma Lady 15
@@ -162,14 +164,13 @@ return {
 
   -- ------- CLOSEST BUILD: the townsfolk and staff the cart drew no bust of
   --
-  -- MAN_1 (x31), MAN_2 (x22), WOMAN_3 (x37) and NURSE (x18) are among the most
+  -- MAN_1 (x31), MAN_2 (x22), WOMAN_3 (x37) are among the most
   -- common people in Hoenn and had no face at all.  Each takes the bust whose
   -- build and palette its sprite shows, decided by eye against the art
   -- (.probe/_em_townsfolk.png):
   [19] = 16,             -- MAN_1   (the man in the green vest)  -> pic 16 (RUIN MANIAC)
   [23] = 5,              -- MAN_2   (the man in the green apron) -> pic 5  (COLLECTOR)
   [24] = 15,             -- WOMAN_3 (the girl in the red dress)  -> pic 15 (AROMA LADY)
-  [58] = 82,             -- NURSE   (pink hair, white dress)     -> pic 82 (SALON MAIDEN)
   -- SCIENTIST_2 (a woman in a lab coat) took picture 24 in 1.3.2 on the belief
   -- that 24 was the EXPERT old woman.  It is not: 24 is WINSTRATE (class 35), a
   -- young man, so every female scientist wore a kneeling boy.  The cart has no
@@ -177,14 +178,45 @@ return {
   -- pale outfit, and a woman is at least the right person.
   [115] = 82,            -- SCIENTIST_2 (a woman in a lab coat)  -> pic 82 (SALON MAIDEN)
 
+  -- ------- REPORTED: the player's family, and the two lab staff
+  --
+  -- May's mother and Professor Birch had NO face (both declined in 1.3.2) and
+  -- the lab scientist wore a TEAM AQUA GRUNT -- the documented majority artefact
+  -- again: gfx_art.lua carried `[46] = 1` with the comment "1 trainers: TEAM
+  -- AQUA x1", one mis-keyed Aqua object wearing the scientist graphic, so every
+  -- scientist in Hoenn wore the villain's face.  None of the three has an exact
+  -- bust -- Emerald's class table has no Professor, no mother and no Scientist --
+  -- so each takes the closest build by eye (.probe/_r6_decide.png):
+  [64] = 24,             -- PROF_BIRCH -> pic 24 (WINSTRATE): the one brown-haired
+                         --   man in pale garments, matching Birch's own overworld
+                         --   sprite (brown hair, white coat).  Not exact, but the
+                         --   right person, and the alternative was no face at all.
+  [215] = 15,            -- MOM        -> pic 15 (AROMA LADY): brown hair, red top,
+                         --   the closest female build to Mom's overworld sprite.
+  [46] = 70,             -- SCIENTIST_1 -> pic 70: a young man in a WHITE COAT with a
+                         --   clear face -- the one pale-coated bust the cart draws,
+                         --   and the nearest thing to a lab scientist.  (pic 16, the
+                         --   Ruin Maniac, is pale-coated too but holds a magnifier over
+                         --   his own face, so its window always shows a lens.)  This
+                         --   replaces the TEAM AQUA GRUNT (pic 1) the majority gave it.
+
+  -- ------- CLOSEST BUILD: the nurse the cart drew no bust of
+  --
+  -- The cart DOES draw a nurse overworld sprite (gfx 58 -- pink hair, a white cap
+  -- with a red cross), but it draws NO nurse battle bust: pic 82 is the SALON
+  -- MAIDEN, a purple-clad contest host, which 1.3.2 wore for her and which reads
+  -- as the wrong person entirely.  Reported as "should not have a portrait"; a
+  -- wrong face is worse than none, so she declines -- the answer this table gives
+  -- the old woman and the Mart employee.
+  [58] = false,          -- NURSE
+
   -- ------- DECLINED: named people who never battle, so no bust exists
   --
-  -- The professor, the mother, the TV crew, the shop and Devon staff, the
-  -- contest and link-room staff, the mystery-gift man and Scott.  The cart
-  -- never drew a front picture of any of them, and a wrong face is worse than
-  -- none -- the answer FRLG's table gives its Daisy and its Fat Man.
-  [64] = false,          -- PROF_BIRCH
-  [215] = false,         -- MOM
+  -- The TV crew, the shop and Devon staff, the contest and link-room staff, the
+  -- mystery-gift man and Scott.  The cart never drew a front picture of any of
+  -- them, and a wrong face is worse than none -- the answer FRLG's table gives
+  -- its Daisy and its Fat Man.  The professor, the mother and the nurse USED to
+  -- be here too; they are reported and now take a closest-build bust above.
   [219] = false,         -- SCOTT
   [99] = false,          -- ARTIST
   [27] = false,          -- COOK
