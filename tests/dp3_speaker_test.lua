@@ -3098,5 +3098,222 @@ do
   package.loaded["src.core.game3.objects"] = savedObjects
 end
 
+-- ------- 20. EVERY FIELD-MOVE BOX WEARS NOBODY'S FACE
+--
+-- The reported "when a player battles a trainer and then triggers an HM move
+-- dialogue box (Cut, Strength, Surf), the box shows the portrait of the
+-- previously fought NPC instead of none" -- and, as the report went on to say,
+-- "and also Rock Smash" is not a second bug: it is the same box for EVERY field
+-- move, so the fix has to cover the whole class.
+--
+-- The field-move box does not come from a conversation.  It is printed by
+-- src/core/game3/field.lua, which calls Message.show DIRECTLY --
+--
+--   Message.show(res.text)              (the failure / refusal box),
+--   Message.show(res.ask, callback)     (the "Would you like to...?" prompt), and
+--   Message.show(payload.text, done)    (the "used move" box, Field.executeFieldMove)
+--
+-- -- with no `opts` and no world.talk.  So `speakerFor` has no press of ITS OWN
+-- and falls through to the RECORD, which after a battle still names the NPC the
+-- player last spoke to (the trainer).  The box then wears that face.
+--
+-- A field-move text is never anybody's dialogue -- the cart gives it no speaker
+-- -- so the right answer is NO portrait, whatever the record says.
+--
+-- This section is driven the way the FIX is: the mod reads the cart's own
+-- FieldMoves table, so the test installs one.  The strings below are MEASURED
+-- off the FireRed cart (see .probe/drivers/dp3_fm_text_measure.lua, whose output
+-- is reproduced verbatim here) -- not invented, and not read back from the mod's
+-- own answer, which would make the test agree with whatever the mod happened to
+-- do.  The mon-name ones are stored as the engine builds them: resolved with an
+-- empty nickname, so "X used CUT!" is stored as " used CUT!" exactly as
+-- FieldMoves.TEXT.USED_MOVE is.
+io.write("-- every field-move box wears nobody's face\n")
+
+-- The stub FieldMoves, with the FireRed strings verbatim from the measurement
+-- driver.  monText mirrors the engine: the nickname and the move name are
+-- substituted into the template, so the mod (which resolves monText with its own
+-- sentinel) sees the same shapes the game does.
+local FM_TEXT = {
+  CANT_USE_HERE        = "Can't use that here.",
+  ALREADY_SURFING      = "You're already SURFING.",
+  CUT_NOTHING          = "There's nothing to CUT.",
+  CANT_SURF_HERE       = "No SURFING here!",
+  CURRENT_TOO_FAST     = "The current is much too fast!",
+  ENJOY_CYCLING        = "Let's enjoy cycling!",
+  FLASH_IN_USE         = "This is in use already.",
+  NOT_ENOUGH_HP        = "Not enough HP\226\128\166",
+  BADGE_REQUIRED       = "This can't be used until a new\nBADGE is obtained.",
+  ASK_CUT_TREE         = "This tree looks like it can be CUT\ndown!\\pWould you like to CUT it?",
+  TREE_CAN_BE_CUT      = "This tree looks like it can be CUT\ndown!",
+  ASK_ROCK_SMASH       = "This rock appears to be breakable.\nWould you like to use ROCK SMASH?",
+  MON_MAY_SMASH_ROCK   = "It's a rugged rock, but a POK\195\169MON\nmay be able to smash it.",
+  ASK_STRENGTH         = "It's a big boulder, but a POK\195\169MON\nmay be able to push it aside.\\pWould you like to use STRENGTH?",
+  MON_MAY_PUSH_BOULDER = "It's a big boulder, but a POK\195\169MON\nmay be able to push it aside.",
+  STRENGTH_ACTIVE      = "STRENGTH made it possible to move\nboulders around.",
+  ASK_WATERFALL        = "It's a large waterfall.\nWould you like to use WATERFALL?",
+  CANT_WATERFALL       = "A wall of water is crashing down\nwith a mighty roar.",
+  NO_SWEET_SCENT_MONS  = "Looks like there's nothing here\226\128\166",
+  ASK_SURF             = "The water is dyed a deep blue\226\128\166\nWould you like to SURF?",
+  CANT_SURF_CURRENT    = "The current is much too fast!\nSURF can't be used here\226\128\166",
+}
+-- The mon-name templates, exactly as the engine's monText substitutes into them.
+-- The nickname is string var 1; USED_MOVE ALSO takes the move name as var 2.
+-- The templates are written with \1 for the nickname and \2 for the move name so
+-- STRENGTH -- where the nickname appears TWICE and there is no move name at all
+-- -- is not confused with USED_MOVE.
+local FM_MON = {
+  USED_MOVE      = "\1 used \2!",
+  USED_STRENGTH  = "\1 used STRENGTH!\\p\1's STRENGTH made it\npossible to move boulders around!",
+  USED_SURF      = "\1 used SURF!",
+  USED_WATERFALL = "\1 used WATERFALL.",
+}
+local FM_MOVES = { CUT = 15, ROCK_SMASH = 249 }
+local FM_MOVE_NAMES = { [15] = "CUT", [249] = "ROCK SMASH" }
+local stubFieldMoves = {
+  MOVES = FM_MOVES,
+  TEXT = setmetatable({}, { __index = function(_, k) return FM_TEXT[k] end }),
+  monText = function(key, monName, moveId)
+    local tmpl = FM_MON[key]
+    if not tmpl then return nil end
+    local moveName = moveId and FM_MOVE_NAMES[moveId] or ""
+    -- `(x):gsub(...)` returns TWO values, and an unparenthesised call as gsub's
+    -- replacement argument would hand the outer gsub its COUNT as the max-
+    -- substitution limit (a classic Lua trap: "a":gsub(p, (b):gsub(...)) does
+    -- zero replacements when the inner count is 0).  Wrap the whole inner call.
+    local out = tmpl:gsub("\1", ((monName or ""):gsub("%%", "%%%%")))
+    out = out:gsub("\2", ((moveName):gsub("%%", "%%%%")))
+    return out
+  end,
+}
+local realFieldMoves = package.loaded["src.core.game3.field_moves"]
+package.loaded["src.core.game3.field_moves"] = stubFieldMoves
+
+-- A fresh instance, because the mod builds its field-move test list ONCE per
+-- install and caches it -- the suite's own instance has already built its list
+-- against the real (ROM-backed) table, so it is a new instance that sees the
+-- stub.  Same sentinel dance as the pack test above.
+local Message    = require("src.ui.game3.message")
+local FrlgFont   = require("src.ui.game3.frlg_font")
+local OptionRows = require("src.ui.game3.option_rows")
+local savedMsgWrapped  = Message.dp3_wrapped
+local savedShow        = Message.show
+local savedDraw        = Message.draw
+local savedFontDraw    = FrlgFont.draw
+local savedRowsWrapped = OptionRows.dp3_build_wrapped
+local savedRowsBuild   = OptionRows.build
+Message.dp3_wrapped = nil
+OptionRows.dp3_build_wrapped = nil
+
+local fmMod = { path = MOD_ROOT, exports = {}, generation = 3 }
+fmMod.log = { info = function() end, warn = function() end, error = function() end }
+fmMod.options = mod.options
+fmMod.read = mod.read
+fmMod.content = mod.content
+fmMod.assets = mod.assets
+-- This instance has to receive `world.trainer_engaged` for the tests below to
+-- have a record to fight, so -- unlike the pack test's fresh instance -- it is
+-- given REAL hooks and events.  They are subscribed under a THROWAWAY owner id
+-- so the cleanup at the end can drop exactly this instance's subscriptions and
+-- leave the suite's own instance installed (removeOwner is by owner).
+local FM_OWNER = "dp3-fm-test-instance"
+local fmUnsubs = {}
+local fmEvents, fmHooks = {}, {}
+fmHooks.wrap = function(_, name, fn)
+  Runtime.hooks:wrap(name, fn, 100, FM_OWNER)
+end
+fmEvents.on = function(_, name, fn)
+  fmUnsubs[#fmUnsubs + 1] = Runtime.events:on(name, fn, 100, FM_OWNER)
+end
+fmMod.hooks = fmHooks
+fmMod.events = fmEvents
+local fmBoot = assert(loadfile(MOD_ROOT .. "/main.lua"))
+local fmRet = fmBoot(fmMod)
+if type(fmRet) == "function" then fmRet(fmMod) end
+local F = fmMod.exports
+ok(type(F.speakerFor) == "function", "the field-move instance exports speakerFor")
+
+-- Install the record the report is about: the player has just fought a trainer,
+-- so the press record still names that trainer.
+local function withTrainer(fn)
+  F.forgetSpeaker()
+  Runtime.emit("world.trainer_engaged",
+    { npc = { trainerType = 27, sprite = "SPRITE_FISHER" }, trainerClass = 27 })
+  return fn()
+end
+ok(withTrainer(function() return F.speakerFor("I like shorts!") end) ~= nil,
+  "with a trainer on record, an ordinary box still names somebody")
+
+-- Every STATIC field-move text must be bare, even while that record stands.
+withTrainer(function()
+  for _, key in ipairs({
+    "CANT_USE_HERE", "ALREADY_SURFING", "CUT_NOTHING", "CANT_SURF_HERE",
+    "CURRENT_TOO_FAST", "ENJOY_CYCLING", "FLASH_IN_USE", "NOT_ENOUGH_HP",
+    "BADGE_REQUIRED",
+    "ASK_CUT_TREE", "TREE_CAN_BE_CUT",
+    "ASK_ROCK_SMASH", "MON_MAY_SMASH_ROCK",
+    "ASK_STRENGTH", "MON_MAY_PUSH_BOULDER", "STRENGTH_ACTIVE",
+    "ASK_WATERFALL", "CANT_WATERFALL", "NO_SWEET_SCENT_MONS",
+    "ASK_SURF", "CANT_SURF_CURRENT",
+  }) do
+    eq(F.speakerFor(FM_TEXT[key]), nil,
+      ("the %s field-move box names nobody"):format(key))
+  end
+end)
+
+-- ...and every MON-NAME field-move box, with a real nickname in it -- the shape
+-- the engine actually shows.  STRENGTH is the interesting one: the nickname
+-- appears TWICE, and both slots must be tolerated.
+withTrainer(function()
+  eq(F.speakerFor("CHARIZARD used CUT!"), nil,
+    "the '<mon> used CUT!' box names nobody")
+  eq(F.speakerFor("BLASTOISE used SURF!"), nil,
+    "the '<mon> used SURF!' box names nobody")
+  eq(F.speakerFor("MACHOKE used STRENGTH!\\pMACHOKE's STRENGTH made it\npossible to move boulders around!"), nil,
+    "the '<mon> used STRENGTH!' box names nobody -- the name appears twice")
+  eq(F.speakerFor("BLASTOISE used WATERFALL."), nil,
+    "the '<mon> used WATERFALL.' box names nobody")
+  -- The one the report added by name: Rock Smash.
+  eq(F.speakerFor("GEODUDE used ROCK SMASH!"), nil,
+    "and ROCK SMASH is covered too -- it is the same box, not a second bug")
+  -- An arbitrary nickname, including one with a space and a pattern-magic "%".
+  eq(F.speakerFor("MR 100%% used CUT!"), nil,
+    "a nickname with a space and a %% is still tolerated")
+end)
+
+-- The record survives every one of them: the box AFTER the field move that IS
+-- somebody's line still draws.
+ok(withTrainer(function() return F.speakerFor("I like shorts!") end) ~= nil,
+  "an ordinary box after the field-move texts still names its speaker")
+
+-- A box that merely CONTAINS one of these words is not a field-move box.  The
+-- test is anchored on the cart's whole field-move sentence, not on "CUT"/"SURF"/
+-- "ROCK SMASH" -- so an ordinary NPC line that happens to use the word still
+-- draws.  (This is the false-positive guard the report's "Rock Smash too" could
+-- easily have broken.)
+Runtime.emit("world.trainer_engaged",
+  { npc = { trainerType = 27, sprite = "SPRITE_FISHER" }, trainerClass = 27 })
+ok(F.speakerFor("CUT it out!  That's my line!") ~= nil,
+  "an NPC line that merely contains CUT is not a field-move box")
+ok(F.speakerFor("I'll SURF this whole sea!") ~= nil,
+  "nor one that merely contains SURF")
+ok(F.speakerFor("Let's ROCK SMASH this problem!") ~= nil,
+  "nor one that merely contains ROCK SMASH")
+ok(F.speakerFor("This rock appears to be breakable.") ~= nil,
+  "nor half of an ask -- the anchored pattern needs the whole sentence")
+F.forgetSpeaker()
+
+-- put the engine and the install sentinels back, so the suite's own instance is
+-- the one installed when this file ends.
+for _, off in ipairs(fmUnsubs) do off() end
+Runtime.hooks:removeOwner(FM_OWNER)
+package.loaded["src.core.game3.field_moves"] = realFieldMoves
+Message.dp3_wrapped = savedMsgWrapped
+Message.show = savedShow
+Message.draw = savedDraw
+FrlgFont.draw = savedFontDraw
+OptionRows.dp3_build_wrapped = savedRowsWrapped
+OptionRows.build = savedRowsBuild
+
 io.write(("\n%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

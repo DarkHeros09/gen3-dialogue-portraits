@@ -2376,8 +2376,152 @@ return function(mod)
     return nil
   end
 
+  -- ------- the field-move box: no speaker, ever
+  --
+  -- Every HM / field move -- CUT, ROCK SMASH, STRENGTH, SURF, WATERFALL, DIVE,
+  -- FLASH, FLY and the rest -- prints its message from src/core/game3/field.lua,
+  -- which calls Message.show DIRECTLY:
+  --
+  --   Message.show(res.text)              (the failure / refusal box), and
+  --   Message.show(res.ask, callback)     (the "Would you like to...?" prompt), and
+  --   Message.show(payload.text, done)    (the "used move" box, Field.executeFieldMove)
+  --
+  -- -- with NO `opts` and NO world.talk.  So the box arrives with no press of its
+  -- own, and speakerFor falls through to the RECORD (the press, or the scene):
+  -- the NPC the player last spoke to.  After a trainer battle that record is
+  -- still the trainer, so the HM box wears the trainer's face -- the reported
+  -- "the box shows the portrait of the previously fought NPC instead of none".
+  --
+  -- None of these lines is anybody's dialogue: the cart gives them no speaker,
+  -- and the correct answer is NO portrait.  This is a rule about a CLASS of
+  -- boxes, and it must be complete -- "and also Rock Smash" is every field move,
+  -- not a second special case.
+  --
+  -- So the test is built from the ENGINE'S OWN tables, not a hand-copied list of
+  -- strings: FieldMoves.TEXT is the one place the cart's field-move texts live,
+  -- and reading it here means a move added to the engine later is covered
+  -- without an edit to this file, and an FRLG boot never matches an Emerald
+  -- string (or the reverse) because the table is already the cart's own.
+  --
+  -- Two shapes of text:
+  --   * the STATIC ones ("Can't use that here.", "This tree looks like it can
+  --     be CUT down!") -- exact, fixed strings; matched by equality.
+  --   * the MON-NAME ones ("<nickname> used CUT!") -- the buffered nickname is
+  --     whatever the player typed, so equality cannot work.  These are resolved
+  --     ONCE with a printable sentinel standing in every name slot, and the
+  --     sentinel is then turned into a Lua pattern's `.*` -- so the pattern is
+  --     derived from the cart's text, not guessed, and it survives a nickname
+  --     containing any character at all.  STRENGTH is the worked example: its
+  --     text names the mon TWICE ("X used STRENGTH!\pX's STRENGTH made it...").
+  local FIELD_MOVE_SENTINEL = "\1FMNAME\1"
+  local fieldMoveTests          -- built on first use; nil until then
+  local function buildFieldMoveTests()
+    local tests = {}
+    local ok, FieldMoves = pcall(require, "src.core.game3.field_moves")
+    if not ok or type(FieldMoves) ~= "table" then return tests end
+    local TEXT = FieldMoves.TEXT
+
+    -- Everything the engine defines as a field-move string.  A key missing from
+    -- this cart resolves to nil and is simply skipped (DIVE/SURFACE are Emerald
+    -- only, for instance -- see field_moves.lua's two tables).
+    local STATIC_KEYS = {
+      "CANT_USE_HERE", "ALREADY_SURFING", "CUT_NOTHING", "CANT_SURF_HERE",
+      "CURRENT_TOO_FAST", "ENJOY_CYCLING", "FLASH_IN_USE", "NOT_ENOUGH_HP",
+      "BADGE_REQUIRED",
+      "ASK_CUT_TREE", "TREE_CAN_BE_CUT",
+      "ASK_ROCK_SMASH", "MON_MAY_SMASH_ROCK",
+      "ASK_STRENGTH", "MON_MAY_PUSH_BOULDER", "STRENGTH_ACTIVE",
+      "ASK_WATERFALL", "CANT_WATERFALL", "NO_SWEET_SCENT_MONS",
+      "ASK_SURF", "CANT_SURF_CURRENT",
+      "ASK_DIVE", "CANT_DIVE", "ASK_SURFACE", "CANT_SURFACE",
+    }
+    local MON_KEYS = {
+      "USED_MOVE",       -- CUT, ROCK SMASH (also carries the MOVE name)
+      "USED_STRENGTH",
+      "USED_SURF",
+      "USED_WATERFALL",
+      "USED_DIVE",
+    }
+
+    if type(TEXT) == "table" then
+      for _, key in ipairs(STATIC_KEYS) do
+        local okv, value = pcall(function() return TEXT[key] end)
+        if okv and type(value) == "string" and value ~= "" then
+          tests[#tests + 1] = { exact = value }
+        end
+      end
+    end
+
+    -- The mon-name ones, as anchored patterns.  The sentinel is a printable run
+    -- so it survives toAscii, and every other character is escaped with %- --
+    -- the cart's own "%" then cannot collide with a pattern class.
+    if type(FieldMoves.monText) == "function" then
+      local function esc(s)
+        return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+      end
+      -- Ask monText like the engine does.  USED_MOVE takes the MOVE name as its
+      -- second string var, so it is asked once per field move that can reach it;
+      -- the rest carry only the nickname, and are asked with no move id at all.
+      -- (A bare `{ nil }` would be an empty list to ipairs, so the move ids are
+      -- spelled as an explicit list and the no-move case is its own branch.)
+      local function addMonPattern(key, moveId)
+        local okm, sample = pcall(function()
+          return FieldMoves.monText(key, FIELD_MOVE_SENTINEL, moveId)
+        end)
+        if okm and type(sample) == "string" and sample ~= ""
+            and sample:find(FIELD_MOVE_SENTINEL, 1, true) then
+          local pattern = esc(sample):gsub(esc(FIELD_MOVE_SENTINEL), ".*")
+          tests[#tests + 1] = { pattern = "^" .. pattern .. "$" }
+        end
+      end
+      for _, key in ipairs(MON_KEYS) do
+        if key == "USED_MOVE" then
+          local ids = { 15, 249, 127, 291, 148, 29, 290 }  -- CUT, ROCK_SMASH,
+          -- WATERFALL, DIVE, FLASH, HEADBUTT, SECRET_POWER -- every field move
+          -- this engine routes through USED_MOVE.
+          if type(FieldMoves.MOVES) == "table" then
+            ids = { FieldMoves.MOVES.CUT, FieldMoves.MOVES.ROCK_SMASH,
+                    FieldMoves.MOVES.WATERFALL, FieldMoves.MOVES.DIVE,
+                    FieldMoves.MOVES.FLASH, FieldMoves.MOVES.HEADBUTT,
+                    FieldMoves.MOVES.SECRET_POWER }
+          end
+          for _, moveId in ipairs(ids) do addMonPattern(key, moveId) end
+        else
+          addMonPattern(key, nil)
+        end
+      end
+    end
+    return tests
+  end
+
+  -- Does this box belong to a field move?  Asked of the cart's own strings, and
+  -- only of a real string -- anything else is not a field-move box.
+  local function fieldMoveText(text)
+    if type(text) ~= "string" then return false end
+    -- Built once and kept.  An EMPTY build is retried rather than kept, because
+    -- the one way to fail here is to ask before the ROM's text tables are ready
+    -- (rom_text answers nothing yet) -- and a permanently-empty list would be a
+    -- silent no-op on every box for the rest of the session.  A non-empty list
+    -- is never rebuilt: the cart's texts cannot change mid-process.
+    if fieldMoveTests == nil or #fieldMoveTests == 0 then
+      fieldMoveTests = buildFieldMoveTests()
+    end
+    for i = 1, #fieldMoveTests do
+      local t = fieldMoveTests[i]
+      if t.exact and text == t.exact then return true end
+      if t.pattern and text:match(t.pattern) then return true end
+    end
+    return false
+  end
+
   -- ------- the resolver
   local function speakerFor(text)
+    -- A field-move box names nobody, and it OUTRANKS every other route below --
+    -- the press, the scene, and the text-name tables -- because it is the one
+    -- box that has no speaker AT ALL rather than a speaker to correct.  See
+    -- fieldMoveText for why this is a class and not a one-off.
+    if fieldMoveText(text) then return nil end
+
     -- ONE-OFF, and deliberately not a rule.  "A MACHOP is stomping the land
     -- flat." is the player's own observation about the Machop standing in front
     -- of them, not the Machop speaking, so it must draw no portrait -- while the
