@@ -608,10 +608,12 @@ do
   end
 end
 
--- (c) the three windows the automatic head scan misframed are corrected, and the
--- corrected values are the ones the build cuts with.  This is the BUG CATCHER
--- report: the scan centred on the butterfly net, so the boy's face was outside
--- the window; the fix moves it to 20,16.
+-- (c) the four windows the automatic head scan misframed are corrected, and the
+-- corrected values are the ones the build cuts with.  BUG CATCHER: the scan
+-- centred on the butterfly net, so the boy's face was outside the window; the
+-- fix moves it to 20,16.  FISHERMAN: the fishing rod widened every row's span
+-- so the scan's centre sat mid-frame and the window cut the face off the right
+-- edge; the fix moves it from 16,9 to 34,8.
 do
   local f = io.open(MOD_ROOT .. "/emerald/crops.lua", "rb")
   local src = f and f:read("*a"); if f then f:close() end
@@ -625,6 +627,7 @@ do
     eq(win("73"), "20,16", "cropE: BUG CATCHER 73 -> the head, not the net (was 32,10)")
     eq(win("30"), "16,4",  "cropE: pic 30 corrected off the hat brim")
     eq(win("54"), "8,2",   "cropE: pic 54 corrected off the outstretched arm")
+    eq(win("55"), "34,8",  "cropE: FISHERMAN 55 -> the face, not the rod (was 16,9)")
   end
 end
 

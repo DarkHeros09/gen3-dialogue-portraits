@@ -204,7 +204,7 @@ Two 1.3.2 mappings were also **corrected**, not merely extended:
   `isEmeraldBoot()` is false, the Emerald path declines, and the FRLG resolver
   answers all four probes unchanged.
 
-### The six reported follow-ups
+### The seven reported follow-ups
 
 Reported against the first Emerald build, in order:
 
@@ -214,8 +214,9 @@ Reported against the first Emerald build, in order:
 > * may's mom has the wrong portrait
 > * pokecenter nurse should not have a portrait
 > * bug hunter portrait need frame adjusting
+> * fisherman portrait needs frame adjusting
 
-Each was fixed by measurement, and each fix is pinned by a probe. All six live in
+Each was fixed by measurement, and each fix is pinned by a probe. All seven touch
 the two Emerald routes the report reached: `emerald/gfx_art_people.lua` (the
 hand-authored table that answers ahead of both majorities) and
 `emerald/crops.lua` (the crop windows).
@@ -248,18 +249,28 @@ hand-authored table that answers ahead of both majorities) and
   corrected by eye in `.probe/dp3_emit_emerald_crops.py`'s `OVERRIDE`:
   `73 → 20,16`, `30 → 16,4`, `54 → 8,2`, each commented
   `-- CORRECTED by eye (scan read a prop, not the head)`.
+* **the fisherman's frame (picture 55) was centred on his rod.** The same
+  measurement fault, one layer harder to see: the scan found the cap correctly
+  (`head_y0 = 11`) but then ran its head band to row 61, because the **fishing
+  rod** enters from the left at row 14 and widens every row below — so the band's
+  horizontal centre came out mid-frame (`head_cx = 32`) and the `{16, 9}` window
+  cut the face off its right edge with the rod filling the left half. The window
+  is corrected to **`34, 8`**, which centres the head (rows 11–31, x 40–59,
+  centre ≈ 49) with a small margin above the cap and no rod in frame. Fourth
+  `OVERRIDE` entry, same comment.
 
-`tests/dp3_emerald_test.lua` now **141 checks, 0 failures**: section 6d pins
+`tests/dp3_emerald_test.lua` now **142 checks, 0 failures**: section 6d pins
 `people[17]==0`, `people[64]==24`, `people[215]==15`, `people[46]==70`,
-`people[58]==false`, and a new sub-section asserts the three corrected windows
-(`win("73")=="20,16"`, `win("30")=="16,4"`, `win("54")=="8,2"`).
+`people[58]==false`, and a new sub-section asserts the four corrected windows
+(`win("73")=="20,16"`, `win("30")=="16,4"`, `win("54")=="8,2"`,
+`win("55")=="34,8"`).
 
 `.probe/drivers/dp3_emerald_report6.lua` is the re-runnable proof: it asks the
-build what it resolves for the seven reported graphics and prints the picture,
+build what it resolves for the eight reported graphics and prints the picture,
 the crop window **and which table answered**, and the class picture the cart
 itself would use — so the fix is checked against the cart, not against the fix.
 Measured: PROF_BIRCH→24, SCIENTIST_1→70, FAT_MAN→0, MOM→15, NURSE→*(declined)*,
-BUG_CATCHER→73 at window `20,16`.
+BUG_CATCHER→73 at window `20,16`, FISHERMAN→55 at window `34,8`.
 
 ## 1.3.1 — the Route 24 recruiter: his face back, the Nugget box left bare, and the walk-past given one
 

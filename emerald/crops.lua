@@ -90,7 +90,7 @@ return {
     ["52"] = { 16, 4, 32 },  -- head starts row 6
     ["53"] = { 17, 13, 32 },  -- head starts row 15
     ["54"] = { 8, 2, 32 },  -- CORRECTED by eye (scan read a prop, not the head)
-    ["55"] = { 16, 9, 32 },  -- head starts row 11
+    ["55"] = { 34, 8, 32 },  -- CORRECTED by eye (scan read a prop, not the head)
     ["56"] = { 13, 1, 32 },  -- head starts row 3
     ["57"] = { 18, 0, 32 },  -- head starts row 2
     ["58"] = { 15, 1, 32 },  -- head starts row 3
