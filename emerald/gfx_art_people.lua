@@ -1,0 +1,197 @@
+-- The Emerald counterpart of main.lua's hand-authored GFX_ART: the person
+-- graphics the MEASURED tables cannot answer, given the cart's own bust.
+--
+-- ---- why a hand table is needed at all
+--
+-- emerald/gfx_art.lua and emerald/map_art.lua are MAJORITIES over the cart's
+-- trainer rows: they answer for a graphic only when some trainer WEARS it.  Of
+-- the person graphics the ROM places, the great majority are worn by a trainer
+-- and the two generated tables answer them; a measured 25 kinds are not, and
+-- for those the graphic is the only fact about the person.  Without an entry
+-- here every one of them got NO portrait -- which is exactly the report this
+-- release fixes ("no portraits has been showing during dialogue boxs").
+--
+-- The 25 were measured, not assumed: .probe/drivers/dp3_emerald_sweep.lua walks
+-- every map the engine hydrates, resolves every object, and prints the person
+-- graphics the resolver declined.  THAT list is what this table is keyed by.
+--
+-- ---- how the values were decided
+--
+-- By eye, against the cart's own art, the way FRLG's GFX_ART was: the overworld
+-- sprite (rom_sprites/overworld/ow_NNN.png, id = this table's key) and the
+-- trainer bust (rom_sprites/trainers/tr_NNN.png, id = the value) were put side
+-- by side (.probe/dp3_em_cmp.py) and the bust that IS that person -- or, for a
+-- figure the cart never drew a bust of, the closest bust of the same build and
+-- palette -- was written down.  NO value here is inferred from a class name or
+-- a graphic name; where a name and the art disagree, the art won.
+--
+-- Three kinds of entry, in order of how hard the value is:
+--
+--   * EXACT, for the leaders, the champion, the villains, the Frontier Brain
+--     and the rival.  The cart FIELDS these in battle, so its own trainer table
+--     carries a row for each and the row names the picture -- NORMAN id 269 pic
+--     44, WALLACE id 335 pic 54, ARCHIE id 34 pic 13, BRANDON id 811 pic 88
+--     (measured by .probe/dp3_em_named.lua).  The graphic is only needed because
+--     the importer's scriptKey table cannot name their battle scripts.  The
+--     rival is exact from the other side: his overworld art is PIXEL-IDENTICAL
+--     to the player's (gfx 100 == gfx 0, gfx 105 == gfx 89), so he wears the
+--     player's own bust.
+--   * A CLOSEST-BUILD bust, for the generic townsfolk the cart drew no bust of
+--     (the man, the woman, the nurse): the same decision FRLG's table records
+--     for its Man (-> the Tamer) and its Balding Man (-> the Engineer).
+--   * `false`, for a named character who never battles, so the cart has no front
+--     picture of them at all: a wrong face would be worse than none, which is
+--     the answer FRLG's table gives its Daisy and its Fat Man.
+--
+-- ---- the values
+--
+-- A NUMBER is an exact front-picture id, read the same way art/crops.lua's are.
+-- `false` is "this graphic is a person the cart never drew a battle bust of".
+-- Keyed by the graphics id, exactly like emerald/gfx_art.lua, so a typo in a key
+-- would fall through to the generated majority rather than crash; the tests
+-- assert every value is a readable picture or `false`.
+
+return {
+  -- ------- the ORDINARY townsfolk: a whole family of graphics the cart's own
+  -- class table answers for exactly, but that the measured majority routes to a
+  -- Sailor (pic 68) because ONE mis-keyed trainer object wears each of them.
+  --
+  -- WHY THE MAJORITY IS WRONG HERE.  emerald/gfx_art.lua counts an object only
+  -- when its scriptKey maps to a cart trainer id.  gfx 7 BOY_1 is worn by 26
+  -- ordinary NPCs and one object whose scriptKey resolves to a trainer row whose
+  -- class reads SAILOR, so the whole-ROM majority is "SAILOR x1" -- one vote
+  -- against zero, because the 26 townsfolk are not trainers and never got a
+  -- vote.  A graphic is a uniform, not a person, and the cart's own NAME for the
+  -- graphic (emerald/gfx_names.lua) is the better fact when it names a class.
+  --
+  -- These entries resolve it by eye, against the cart's own art, the way FRLG's
+  -- GFX_ART was: the overworld sprite's front frame (the second 16px frame of
+  -- ow_NNN.png) beside the candidate busts, at 8x (.probe/_em_kids.png).  The
+  -- boy graphics wear the YOUNGSTER (pic 53), the girl graphics the SCHOOL KID
+  -- (pic 48) -- the two child-busts the cart drew -- and RICH_BOY its own class
+  -- picture 23.  NO value here is inferred from a class name alone; where the
+  -- name and the art disagreed, the art won.
+  --
+  -- The picture ids are the cart's own, read off the class table the mod builds
+  -- (.probe/drivers/dp3_emerald_classdump.lua): YOUNGSTER class 37 pic 53,
+  -- SCHOOL KID class 33 pic 48, RICH BOY class 22 pic 23.
+  [7]  = 53,             -- BOY_1        (x26) small boy,  blue cap   -> YOUNGSTER
+  [8]  = 48,             -- GIRL_1             small girl, red dress -> SCHOOL KID
+  [9]  = 53,             -- BOY_2        (x26) small boy,  blue cap   -> YOUNGSTER
+  [10] = 48,             -- GIRL_2             small girl, green     -> SCHOOL KID
+  [11] = 53,             -- LITTLE_BOY         small boy             -> YOUNGSTER
+  [12] = 48,             -- LITTLE_GIRL  (x21) small girl, red hair   -> SCHOOL KID
+  [13] = 53,             -- BOY_3              small boy, red cap     -> YOUNGSTER
+  [15] = 23,             -- RICH_BOY           boy in a dark suit    -> RICH BOY (pic 23)
+
+  -- ------- graphics whose own cart name IS a class, and the class answers with
+  -- a BETTER picture than the majority -- the two route-3 disagreements the
+  -- audit found (.probe/drivers/dp3_emerald_route3_check.lua).
+  [47] = 77,             -- LASS   (x36) -> LASS class 54 pic 77, not the majority's Psychic 34
+  [55] = 0,              -- HIKER  (x29) -> HIKER class 2 pic 0,   not the majority's Ruin Maniac 16
+
+  -- ------- the rest of the SAILOR-contaminated and mis-routed ordinary NPCs
+  --
+  -- Same one-mis-keyed-trainer artefact as the child family above, on the adult
+  -- graphics: WOMAN_1, FAT_MAN and POKEFAN_F all route to the Sailor (pic 68) by
+  -- a single spurious vote, and POKEFAN_M/WOMAN_2 to a near-miss.  Each decided
+  -- by eye against the overworld front frame (.probe/_em_final2.png).
+  [16] = 20,             -- WOMAN_1   (x15) woman, green  -> pic 20, not the Sailor
+  [17] = 2,              -- FAT_MAN   (x29) the round man -> pic 2 (POKéMON BREEDER), not the Sailor
+  [18] = 52,             -- POKEFAN_F (x43) the fan girl -> pic 52 (POKéFAN), not the Sailor
+  [25] = 52,             -- POKEFAN_M (x23) the fan boy  -> pic 52 (POKéFAN), not 51
+  [20] = 20,             -- WOMAN_2   (x49) woman, green  -> pic 20 (COOLTRAINER), not Aroma Lady 15
+  [65] = 2,              -- MAN_4     (x26) -> pic 2 (POKéMON BREEDER), not the Young Couple 78
+
+  -- ------- the pair pictures the majority had already routed, now HAND-PINNED
+  -- so the framing cannot drift back to the single default.  The half is filed
+  -- in emerald/crops.lua's pairSide; these keep the PICTURE right.
+  [68]  = 17,            -- REPORTER_F     -> INTERVIEWER pair (left, with the mic)
+  [110] = 17,            -- CAMERAMAN      -> INTERVIEWER pair (right, with the camera)
+  [67]  = 17,            -- REPORTER_M     -> INTERVIEWER pair (right, with the camera too --
+                         --   his overworld front frame holds the camera, .probe/_em_reporters.png)
+  [213] = 80,            -- TUBER_M_SWIMMING -> SIS AND BRO pair (left, the boy)
+
+  -- ------- a lone NPC wearing a TWO-PERSON picture
+  --
+  -- WOMAN_4 (x21) and MAN_4 (x26) are among the most-placed people in Hoenn, and
+  -- the majority routes BOTH to picture 78 -- the YOUNG COUPLE, a two-person
+  -- bust.  A lone NPC has no pairSide (there is no "which half" for someone
+  -- standing alone), so the pair route cannot fire and the whole embrace was cut
+  -- with one window: two heads in a 32px box.  Both take a single bust instead,
+  -- by eye against the overworld front frame: the woman's long hair -> pic 49,
+  -- the man -> pic 2 (POKéMON BREEDER), the cart's plainest lone-adult male.
+  [26] = 49,             -- WOMAN_4 (x21) -> pic 49, not the Young Couple 78
+  -- MAN_4 (x26) is filed with the adult block below, for the same reason.
+
+  -- ------- EXACT: the leaders, the champion, the villains, the Frontier Brain
+  --
+  -- Each value is the picture in the cart's own trainer row for that character.
+  [129] = 44,            -- NORMAN   (leader, Petalburg; id 269 pic 44)
+  [133] = 54,            -- WALLACE  (champion;        id 335 pic 54)
+  [195] = 13,            -- ARCHIE   (Team Aqua leader; id 34  pic 13)
+  [234] = 88,            -- BRANDON  (Pyramid King;     id 811 pic 88)
+
+  -- ------- EXACT: the rival wears the player's own bust
+  --
+  -- gfx 100 (RIVAL_BRENDAN_NORMAL) is PIXEL-IDENTICAL to gfx 0 (BRENDAN_NORMAL)
+  -- and gfx 105 (RIVAL_MAY_NORMAL) to gfx 89 (MAY_NORMAL) -- the same art, so
+  -- the same person.  The cart draws one bust per gender: 71 is Brendan's and
+  -- 72 is May's.
+  [100] = 71,            -- RIVAL_BRENDAN_NORMAL -> pic 71
+  [105] = 72,            -- RIVAL_MAY_NORMAL     -> pic 72
+
+  -- ------- EXACT: the old pair are the EXPERT pair
+  --
+  -- The cart's EXPERT class (class 10, pic 9) is the white-haired, bearded old
+  -- man in the blue robe, and BOTH old-man graphics the ROM places wear him:
+  -- OLD_MAN and EXPERT_M.  Measured by .probe/drivers/dp3_emerald_classdump.lua
+  -- (EXPERT -> pic 9) and looked at at 8x (.probe/_em_old.png).
+  [29] = 9,              -- OLD_MAN   -> pic 9  (EXPERT, the old man)
+  [21] = 9,              -- EXPERT_M  (x50) -> pic 9 (EXPERT, the old man)
+
+  -- The old WOMAN has no bust: Emerald's 93 pictures hold ONE elder, the man in
+  -- picture 9.  The old woman is the EXPERT class's female half on the cart's
+  -- trainer table, but the cart never drew her a front picture -- the picture
+  -- the majority reached for, 24, is WINSTRATE (class 35, a young man), which is
+  -- why 1.3.2's `[30] = 24` drew a young man for every old woman in Hoenn.  A
+  -- wrong face is worse than none, so both decline -- the answer FRLG's table
+  -- gives its Daisy and its Fat Man.
+  [30]  = false,         -- OLD_WOMAN   (x10) the cart drew no old-woman bust
+  [22]  = false,         -- EXPERT_F    (x23) ditto
+
+  -- ------- CLOSEST BUILD: the townsfolk and staff the cart drew no bust of
+  --
+  -- MAN_1 (x31), MAN_2 (x22), WOMAN_3 (x37) and NURSE (x18) are among the most
+  -- common people in Hoenn and had no face at all.  Each takes the bust whose
+  -- build and palette its sprite shows, decided by eye against the art
+  -- (.probe/_em_townsfolk.png):
+  [19] = 16,             -- MAN_1   (the man in the green vest)  -> pic 16 (RUIN MANIAC)
+  [23] = 5,              -- MAN_2   (the man in the green apron) -> pic 5  (COLLECTOR)
+  [24] = 15,             -- WOMAN_3 (the girl in the red dress)  -> pic 15 (AROMA LADY)
+  [58] = 82,             -- NURSE   (pink hair, white dress)     -> pic 82 (SALON MAIDEN)
+  -- SCIENTIST_2 (a woman in a lab coat) took picture 24 in 1.3.2 on the belief
+  -- that 24 was the EXPERT old woman.  It is not: 24 is WINSTRATE (class 35), a
+  -- young man, so every female scientist wore a kneeling boy.  The cart has no
+  -- lab-coat bust; pic 82 (SALON MAIDEN) is the closest lone adult female in a
+  -- pale outfit, and a woman is at least the right person.
+  [115] = 82,            -- SCIENTIST_2 (a woman in a lab coat)  -> pic 82 (SALON MAIDEN)
+
+  -- ------- DECLINED: named people who never battle, so no bust exists
+  --
+  -- The professor, the mother, the TV crew, the shop and Devon staff, the
+  -- contest and link-room staff, the mystery-gift man and Scott.  The cart
+  -- never drew a front picture of any of them, and a wrong face is worse than
+  -- none -- the answer FRLG's table gives its Daisy and its Fat Man.
+  [64] = false,          -- PROF_BIRCH
+  [215] = false,         -- MOM
+  [219] = false,         -- SCOTT
+  [99] = false,          -- ARTIST
+  [27] = false,          -- COOK
+  [190] = false,         -- CONTEST_JUDGE
+  [28] = false,          -- LINK_RECEPTIONIST
+  [227] = false,         -- UNION_ROOM_NURSE
+  [223] = false,         -- MYSTERY_GIFT_MAN
+  [83] = false,          -- MART_EMPLOYEE
+  [116] = false,         -- DEVON_EMPLOYEE
+}

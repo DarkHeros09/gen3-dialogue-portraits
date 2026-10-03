@@ -60,6 +60,150 @@ says which of the three it was. The resolver caches the trainer pack **only on
 success**, so a first call that finds nothing does not poison the rest of the
 session — the same defect that once froze the FRLG index empty.
 
+### The box that was still bare: Emerald has no per-speaker text colour
+
+Reported, on the first Emerald build:
+
+> the mod loads, but not working. no portraits have been showing during
+> dialogue boxes.
+
+The resolver was not the problem — it answers 1,388 of the cart's 1,506 person
+objects (92.2%). The problem was the **gate before it**.
+
+The mod decides whether a box is narration by the colour the engine draws it in:
+a person talking is drawn in dark blue or dark red, and narration, signs and
+item boxes in the plain black/grey *neutral* colour, so a neutral box gets no
+portrait. That is a fact about **FireRed/LeafGreen**, and it does not hold on
+Emerald, which draws **every** box in neutral:
+
+* `src/core/game3/profiles/emerald/font.lua:22` sets `npcTextColors = false`;
+* `src/ui/game3/frlg_font.lua:176` then short-circuits every query and returns
+  `NEUTRAL` (`3`) for any graphic at all.
+
+So `opts.npcColor` is `3` for every Emerald field box — the town NPC, the sign,
+the ` received a <ITEM>` box — and the FRLG rule read all of them as narration
+and drew no face. Measured, not read: eight real NPCs pressed across Petalburg,
+Oldale and Littleroot all arrive with `npcColor == 3`.
+
+The colour cannot be consulted where it carries no information, so on an Emerald
+boot the colour gate is opened and the decision is left to the gates that still
+say something true there: the frame gate (field dialogue only) and the speaker
+resolver, which on Emerald answers `nil` for a sign and a person for a person.
+No narration or item box is caught by the change: item balls and the truck still
+decline, and the whole-ROM sweep still reports **no non-person graphic leaked a
+portrait**.
+
+### The frames: Emerald's pictures are not FireRed's, so they get their own windows
+
+Reported, once the faces were appearing:
+
+> nice, but some portraits needs frame adjusting.
+
+The framing came from `art/crops.lua`, which is keyed by **FireRed front-pic
+id** and was measured off FireRed art. Emerald hands back Emerald picture ids
+into an Emerald art set, and the two number spaces overlap: Emerald picture 35
+was being cut with FireRed's picture-35 rectangle, and every Emerald picture the
+FireRed table had not filed fell to FireRed's default `{16, 3, 32}`, tuned for a
+single FireRed bust. On Emerald's **full-body standing figures** that window
+frames the chest, and on a **two-person** picture it splits two heads in half.
+
+`emerald/crops.lua` is a second table, and on an Emerald boot it is the only one
+consulted — the same rule as everywhere else, one table per cart, rather than a
+merge that would have to keep two id spaces straight at every key:
+
+* **every one of the 93 pictures is measured.** `.probe/dp3_emerald_crop_measure.py`
+  reads the cart's own art and finds each picture's opaque bounding box and its
+  head band; `.probe/dp3_emit_emerald_crops.py` writes the 32px window that
+  centres that head band. Nothing is guessed and nothing is copied from FireRed.
+* **the default is Emerald's own** — `{16, 1, 32}`, the head-band top of the
+  measured set, not FireRed's chest-high `{16, 3, 32}`.
+* **seven pictures hold two people** (17, 46, 50, 67, 78, 79, 80) and carry one
+  rectangle per half, with `pairSide` keyed by the Emerald graphic so the mod
+  cuts the half actually standing there. The pair logic is the same two-table
+  shape FireRed's table uses, for the same reason.
+
+The keys are **strings**, like FireRed's, because `portraitFor` builds the key as
+`tostring(entry.pic)`. That is not cosmetic: a numeric-keyed first draft passed a
+syntax check, loaded cleanly, and left every one of the 93 pictures falling to
+the default — the failure the suite now pins.
+
+Measured after: Emerald picture 35 cuts at its own measured window instead of
+FireRed's, and each half of picture 17 (the interviewer and the cameraman) cuts
+to a different, correct window.
+
+### The faces: a graphic is a uniform, so the majority guessed wrong for townsfolk
+
+The same report, one layer down, and the bigger half of it. Only **9 of 142**
+person graphics in Emerald have a cart name that is *also* a trainer-class name
+— the reliable route. The other **133**, covering **1,558 NPCs**, fall to
+`emerald/gfx_art.lua` and `emerald/map_art.lua`, which are **majorities computed
+from trainers only**: an object votes only when its `scriptKey` maps to a cart
+trainer id, so a graphic worn by 26 ordinary townsfolk and **one** mis-keyed
+trainer scored "SAILOR x1" and drew a Sailor for all 26.
+
+`emerald/gfx_art_people.lua` answers first (it is route 4, ahead of both
+majorities) and now hand-maps the ordinary people the majors got wrong, each
+decided by eye against the cart's own art — the overworld sprite's front frame
+beside the candidate busts at 8×:
+
+* the child graphics take the two child busts the cart drew — `BOY_1/2/3` and
+  `LITTLE_BOY` → **YOUNGSTER 53**, `GIRL_1/2`, `LITTLE_GIRL` → **SCHOOL KID 48**
+  — where the majority had drawn a Sailor;
+* `RICH_BOY` → **RICH BOY 23**, `FAT_MAN` → **BREEDER 2**, `POKEFAN_F/M` →
+  **POKéFAN 52**, `WOMAN_1` → **20**, `WOMAN_2` → **20** — all Sailor or
+  near-miss in the majority;
+* `LASS` → **LASS 77** and `HIKER` → **HIKER 0**, the two cases where the cart's
+  own graphic name IS a class and the class answers better than the majority;
+* `WOMAN_4` (×21) and `MAN_4` (×26) → single busts, because the majority had
+  routed both to picture **78, the Young Couple** — a *two-person* picture cut
+  with one window for a lone NPC.
+
+Two 1.3.2 mappings were also **corrected**, not merely extended:
+
+* `OLD_WOMAN` and `EXPERT_F` were drawn with picture **24** on the belief it was
+  the EXPERT old woman. It is **WINSTRATE** (class 35), a young man, so every old
+  woman in Hoenn wore a kneeling boy. Emerald's 93 pictures hold **one** elder —
+  the old man in picture 9 — so both now **decline**: a wrong face is worse than
+  none.
+* `SCIENTIST_2`, mapped for the same wrong reason, now takes picture 82.
+
+### Proof
+
+* `.probe/drivers/dp3_emerald_crop_table.lua` — asks the mod's own `cropFor`
+  which rectangle and which TABLE answered. Emerald picture 35 → `19,4,32`
+  (`emerald/trainers`), not FireRed's; the two halves of picture 17 differ
+  (`5,3` vs `30,4`, `emerald/pairs`); an unfiled picture lands on the Emerald
+  default `16,1,32`.
+* `.probe/drivers/dp3_emerald_classdump.lua` — dumps the cart's own CLASS →
+  PICTURE table (64 classes), which is how a graphic name is checked against a
+  real class picture rather than guessed.
+* `.probe/drivers/dp3_emerald_box_multi.lua` — sixteen real boxes across six
+  maps, **15 drew a portrait**, and the faces are now right: WOMAN_4→**49**,
+  BOY_1→**53**, BOY_2→**53**, FAT_MAN→**2**, RICH_BOY→**23**, WOMAN_2→**20**,
+  GIRL_3→**64**, GENTLEMAN→**35**, TWIN→**67**, FISHERMAN→**55**.
+* `.probe/drivers/dp3_frlg_regression.lua` — unchanged: on a real FireRed boot
+  the Emerald path declines and the FRLG resolver answers every probe.
+* `tests/dp3_emerald_test.lua` — 134 checks, 0 failures; the crop table's keys
+  are asserted to be STRINGS and its values three numbers, and the two
+  corrected people mappings are pinned.
+
+
+  `npcColor` the engine hands each box; on Emerald it is `3` eight times out of
+  eight, which is the defect.
+* `.probe/drivers/dp3_emerald_box_e2e.lua` — boots Emerald, walks to a real NPC,
+  presses A, and asks the mod's own `exports.activePortrait` what the box drew.
+  Before: `RESULT: FAIL box open but NO portrait drawn`. After:
+  `RESULT: PASS box got portrait pic=78 32x32`.
+* `.probe/drivers/dp3_emerald_box_multi.lua` — the same across six maps and
+  sixteen real boxes: **15 drew a real cart portrait** (WOMAN_4→78, BOY_1→68,
+  GENTLEMAN→35, TWIN→67, MAN_1→16, FISHERMAN→55, …) and the one decline is
+  `MART_EMPLOYEE`, a deliberate hand-authored refusal.
+* `.probe/drivers/dp3_emerald_nonperson_gate.lua` — the gate is not a leak:
+  item balls and the truck still refuse, 35 of 39 people still resolve.
+* `.probe/drivers/dp3_frlg_regression.lua` — on a real FireRed boot
+  `isEmeraldBoot()` is false, the Emerald path declines, and the FRLG resolver
+  answers all four probes unchanged.
+
 ## 1.3.1 — the Route 24 recruiter: his face back, the Nugget box left bare, and the walk-past given one
 
 This is the first build of the Route 24 recruiter work that is meant for

@@ -1139,6 +1139,38 @@ return function(mod)
     end
   end
 
+  -- ------- the EMERALD crop table
+  --
+  -- A second crop table, not a patch of the first.  art/crops.lua is keyed by
+  -- the FireRed trainer FRONT-PIC id and every rectangle in it was measured off
+  -- FireRed art.  An Emerald cart hands back EMERALD picture ids into an
+  -- Emerald art set -- full-body standing figures and two-person busts -- so
+  -- FireRed's default window {16, 3, 32}, tuned for a single FireRed bust,
+  -- framed the chest or split two heads in half.  That is the reported "some
+  -- portraits are badly framed".
+  --
+  -- The ids collide, which is the dangerous part: Emerald picture 35 also
+  -- exists in the FireRed table as picture 35, so an Emerald box was silently
+  -- cut with FireRed's picture-35 rectangle.  A separate table makes the two
+  -- number spaces impossible to confuse -- rectFor consults exactly one of
+  -- them, chosen by which cart is running (see below).
+  --
+  -- Read through the mod's own reader for the same reason the first table is:
+  -- a mod's files are not on package.path.  A failure to load it is NOT fatal:
+  -- CROPS_E stays nil and rectFor falls back to the FireRed table, which is
+  -- what the mod did before this file existed.
+  local CROPS_E = nil
+  do
+    local ok, source = pcall(function() return mod:read("emerald/crops.lua") end)
+    if ok and type(source) == "string" then
+      local chunk = load(source, "@" .. tostring(mod.path) .. "/emerald/crops.lua")
+      if chunk then
+        local ok2, value = pcall(chunk)
+        if ok2 and type(value) == "table" then CROPS_E = value end
+      end
+    end
+  end
+
   -- ------- the cart's own trainer id for a script
   --
   -- The one fact that says WHICH trainer an object is, and the one the engine
@@ -2688,6 +2720,38 @@ return function(mod)
   end
 
   local function rectFor(kind, key, speaker)
+    -- ------- Emerald: its own number space, its own table, and only its own
+    --
+    -- `key` on an Emerald boot is an EMERALD picture id, and the FireRed table
+    -- below is keyed by FIREreD picture id -- two different numbers for two
+    -- different art sets, with ids that overlap.  Handing an Emerald picture to
+    -- the FireRed table is how the framing bug happened: Emerald picture 35 hit
+    -- FireRed's picture-35 rectangle, and everything the FireRed table had not
+    -- filed fell to FireRed's default {16, 3, 32}, which for a full-body
+    -- Emerald figure frames the chest.
+    --
+    -- So on an Emerald boot the Emerald table is the ONLY table consulted --
+    -- the same shape as the rule, one table per cart, rather than a merge that
+    -- would have to keep the two id spaces straight at every key.  The order
+    -- inside it mirrors the FireRed table's for the same reasons: the pair half
+    -- first (one rectangle cannot be right for both halves of a two-person
+    -- bust), then the picture's own measured window, then the Emerald default.
+    --
+    -- This branch is taken ONLY on an Emerald boot (CROPS_E is also non-nil
+    -- only if emerald/crops.lua loaded).  On FireRed and LeafGreen nothing
+    -- changes: CROPS_E is present but isEmeraldBoot() is false, so the FireRed
+    -- path below runs exactly as it did, byte for byte.
+    if CROPS_E and isEmeraldBoot() then
+      local side = speaker and speaker.gfx ~= nil and CROPS_E.pairSide
+        and CROPS_E.pairSide[tonumber(speaker.gfx)]
+      local pr = side and CROPS_E.pairs
+        and asRect(CROPS_E.pairs[key] and CROPS_E.pairs[key][side])
+      if pr then return pr end
+      local tr = type(CROPS_E.trainers) == "table" and asRect(CROPS_E.trainers[key])
+      if tr then return tr end
+      return asRect(CROPS_E.defaults and CROPS_E.defaults[kind])
+    end
+
     -- A picture the cart drew TWO people into.  `key` is the picture, the
     -- speaker's own graphics id says which half is standing there, and that
     -- half is the whole answer -- so it is asked FIRST, before the picture
@@ -2729,7 +2793,14 @@ return function(mod)
       ok, quad = pcall(g.newQuad, x, y, size, size, sw, sh)
     end
     if not ok or not quad then return nil end
-    return { image = entry.image, quad = quad, w = size, h = size }
+    -- `pic` rides along so a caller can say WHICH picture was cut, not just that
+    -- one was.  The draw path ignores it -- it needs only image/quad/w/h -- but
+    -- the mod's own `exports.activePortrait` reads it, and a bare `pic = nil` on
+    -- a box that clearly drew a face is a false alarm a verifier should not have
+    -- to reason away.  `key`/`kind` are NOT carried: they are only ever the
+    -- crop-cache slot, and exposing them would invite a caller to depend on a
+    -- cache key.
+    return { image = entry.image, quad = quad, w = size, h = size, pic = entry.pic }
   end
 
   -- A cache must never remember a MISS: a miss costs one failed lookup to
@@ -3462,7 +3533,38 @@ return function(mod)
   -- npcColor at all is NOT declined: every field box in the game carries one, so
   -- an absent value means a caller outside the field path (a suite, a menu)
   -- rather than a black/grey box.
+  --
+  -- ------- but EMERALD does not have this colour at all
+  --
+  -- The whole rule above rests on the colour being a real, per-speaker choice,
+  -- and on EMERALD it is not -- it is a CONSTANT.  The Emerald profile turns the
+  -- engine's colour lookup off outright:
+  --
+  --   src/core/game3/profiles/emerald/font.lua:22   npcTextColors = false
+  --
+  -- and frlg_font.lua:176 then short-circuits every query:
+  --
+  --   if spec and spec.npcTextColors == false then
+  --     return FrlgFont.NPC_TEXT_COLOR.NEUTRAL        -- always 3
+  --   end
+  --
+  -- so `opts.npcColor` is 3 for EVERY field box on an Emerald cart -- the
+  -- ordinary town NPC, the sign, the " received a <ITEM>" box, all of them.
+  -- Measured, not read: .probe/drivers/dp3_emerald_npccolor.lua presses eight
+  -- real NPCs across Petalburg / Oldale / Littleroot and every one arrives with
+  -- npcColor == 3 ("8 boxes captured, npcColor 3 x 8").
+  --
+  -- That is the reported bug in full: on Emerald the FRLG rule reads every box as
+  -- narration and draws no face, which is exactly "the mod loads, but not
+  -- working -- no portraits have been showing during dialogue boxes".  The colour
+  -- cannot be consulted where it carries no information, so on an Emerald boot
+  -- this gate is opened and the DECISION is left to the two gates that still say
+  -- something true there: the frame gate above (still field dialogue only), and
+  -- speakerFor -- which on Emerald answers nil for a sign, an item box or any
+  -- script that named no object, and a person for a person.  Nothing is loosened
+  -- that the colour was needed to hold shut.
   local function coloursAllowPortrait(opts, text)
+    if isEmeraldBoot() then return true end
     if type(opts) ~= "table" then return true end
     local c = opts.npcColor
     if c == nil then return true end
@@ -4328,6 +4430,66 @@ return function(mod)
   end
   mod.exports.emeraldTrainerIds = function()
     return Emerald.trainerIds()
+  end
+  -- The rectangle rectFor would cut a picture with, plus WHICH table answered.
+  -- Exported so a driver can prove the Emerald path consults the Emerald table
+  -- (and not the FireRed one) without having to eyeball a box -- the two id
+  -- spaces overlap, so "a portrait appeared" is not evidence on its own.
+  --
+  -- `emu` forces the Emerald branch so a suite can observe it against whatever
+  -- id the harness booted with, the same reason emeraldArtFor takes `force`.
+  mod.exports.cropFor = function(kind, key, speaker, emu)
+    if emu and CROPS_E then
+      local side = speaker and speaker.gfx ~= nil and CROPS_E.pairSide
+        and CROPS_E.pairSide[tonumber(speaker.gfx)]
+      local pr = side and CROPS_E.pairs
+        and asRect(CROPS_E.pairs[key] and CROPS_E.pairs[key][side])
+      if pr then return pr, "emerald/pairs" end
+      local tr = type(CROPS_E.trainers) == "table" and asRect(CROPS_E.trainers[key])
+      if tr then return tr, "emerald/trainers" end
+      return asRect(CROPS_E.defaults and CROPS_E.defaults[kind]), "emerald/defaults"
+    end
+    return rectFor(kind, key, speaker), (CROPS_E and isEmeraldBoot()) and "emerald" or "frlg"
+  end
+  mod.exports.hasEmeraldCrops = function() return CROPS_E ~= nil end
+  -- A read-only window onto the live draw state, so a driver can prove a REAL
+  -- dialogue box ended up with a portrait rather than inferring it from the
+  -- resolver.  Returns a plain descriptor (never the live table) so a caller
+  -- cannot mutate the box's own state through it.
+  mod.exports.activePortrait = function()
+    if not activePortrait then return nil end
+    return {
+      pic = activePortrait.pic,
+      w = activePortrait.w,
+      h = activePortrait.h,
+      side = activeSide,
+      hasImage = activePortrait.image ~= nil,
+      custom = activePortrait.custom and true or false,
+    }
+  end
+  -- WHICH GATE said no, for a driver.  The three inputs Message.show reads
+  -- before it ever asks for a picture, plus the two answers speakerFor and
+  -- portraitFor gave -- so a bare box on a real boot is never a mystery.  It is
+  -- a diagnostic and takes no part in the draw path.
+  mod.exports.debugGate = function(text, opts)
+    local style = opt and opt("style", "inset") or "inset"
+    local out = { style = style, frame = frameFromOpts(opts),
+                  colours = coloursAllowPortrait(opts, text),
+                  npcColor = type(opts) == "table" and opts.npcColor or nil,
+                  npcColorType = type(opts) == "table" and type(opts.npcColor) or nil }
+    if style ~= "off" and out.frame == "dialogue" and out.colours then
+      local sp = speakerFor(text)
+      out.speaker = sp and { gfx = sp.gfx, sprite = sp.sprite, scriptKey = sp.scriptKey,
+                             mapId = sp.mapId, name = sp.name, class = sp.class,
+                             hasObject = sp.object ~= nil } or false
+      if sp then
+        local art = portraitFor(sp)
+        out.portrait = art and { pic = art.pic, hasImage = art.image ~= nil } or false
+      end
+    end
+    out.pressSpeaker = type(pressSpeaker) == "table"
+      and { gfx = pressSpeaker.graphicsId, scriptKey = pressSpeaker.scriptKey } or false
+    return out
   end
 
   mod.log:info("dialogue portraits (gen 3) installed")

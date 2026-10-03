@@ -502,6 +502,108 @@ withGame("firered", function()
 end)
 
 -- =====================================================================
+-- 6d. THE EMERALD CROP TABLE and THE HAND-MAPPED PEOPLE TABLE
+-- =====================================================================
+--
+-- Two tables this release added, and each has a failure mode that a box on
+-- screen hides:
+--
+--   * emerald/crops.lua is keyed by Emerald FRONT-PIC id and must NOT be
+--     consulted with a FireRed id, and vice versa.  Its keys must be STRINGS:
+--     portraitFor builds the key as tostring(entry.pic), so a numeric key would
+--     silently miss and fall to the default -- every picture mis-framed, and
+--     the file would look correct.  (A numeric first draft did exactly that.)
+--   * emerald/gfx_art_people.lua resolves BEFORE the measured majors, so a
+--     wrong value there is a wrong FACE, not a missing one.  Every value must
+--     be a readable picture id or `false`, and no key may be a pair picture for
+--     a graphic that does not wear one.
+
+-- (a) the crop table loads, has its own default, and every key is a string.
+do
+  local f = io.open(MOD_ROOT .. "/emerald/crops.lua", "rb")
+  local src = f and f:read("*a"); if f then f:close() end
+  local crops = src and load(src, "@emerald/crops.lua")
+  crops = crops and crops()
+  ok(type(crops) == "table", "cropE: emerald/crops.lua loads")
+  if type(crops) == "table" then
+    ok(type(crops.trainers) == "table", "cropE: it has a trainers table")
+    ok(type(crops.defaults) == "table" and type(crops.defaults.trainers) == "table",
+      "cropE: it has its own default (not FireRed's)")
+    -- the default must be a real rectangle, and different from FireRed's
+    local d = crops.defaults.trainers
+    ok(type(d) == "table" and tonumber(d[1]) and tonumber(d[2]) and tonumber(d[3]),
+      "cropE: the default is three numbers")
+    -- every trainers key must be a STRING, or portraitFor would never match it
+    local badKey, n = 0, 0
+    for k in pairs(crops.trainers) do
+      n = n + 1
+      if type(k) ~= "string" then badKey = badKey + 1 end
+    end
+    ok(n > 50, ("cropE: the trainers table is populated (%d entries)"):format(n))
+    eq(badKey, 0, "cropE: EVERY trainers key is a string, as portraitFor builds it")
+    -- every value must be three numbers
+    local badVal = 0
+    for _, v in pairs(crops.trainers) do
+      if type(v) ~= "table" or not (tonumber(v[1]) and tonumber(v[2]) and tonumber(v[3])) then
+        badVal = badVal + 1
+      end
+    end
+    eq(badVal, 0, "cropE: every trainers value is three numbers")
+    -- pairs: each key string, each side a rectangle
+    if type(crops.pairs) == "table" then
+      local bad = 0
+      for k, v in pairs(crops.pairs) do
+        if type(k) ~= "string" or type(v) ~= "table" then bad = bad + 1
+        elseif v.left and not (tonumber(v.left[1]) and tonumber(v.left[3])) then bad = bad + 1
+        elseif v.right and not (tonumber(v.right[1]) and tonumber(v.right[3])) then bad = bad + 1 end
+      end
+      eq(bad, 0, "cropE: every pair entry is a string key with rectangle halves")
+    end
+    -- pairSide values must be "left" or "right"
+    if type(crops.pairSide) == "table" then
+      local bad = 0
+      for _, v in pairs(crops.pairSide) do
+        if v ~= "left" and v ~= "right" then bad = bad + 1 end
+      end
+      eq(bad, 0, "cropE: every pairSide is left or right")
+    end
+  end
+end
+
+-- (b) the hand-mapped people table: every value is a number or false, and no
+-- value points at a picture this release knows to be a pair for a lone NPC.
+do
+  local f = io.open(MOD_ROOT .. "/emerald/gfx_art_people.lua", "rb")
+  local src = f and f:read("*a"); if f then f:close() end
+  local people = src and load(src, "@emerald/gfx_art_people.lua")
+  people = people and people()
+  ok(type(people) == "table", "people: emerald/gfx_art_people.lua loads")
+  if type(people) == "table" then
+    local n, bad = 0, 0
+    for k, v in pairs(people) do
+      n = n + 1
+      if type(k) ~= "number" then bad = bad + 1
+      elseif v ~= false and not tonumber(v) then bad = bad + 1 end
+    end
+    ok(n >= 40, ("people: the table is populated (%d entries)"):format(n))
+    eq(bad, 0, "people: every entry is a numeric graphic id -> a picture or false")
+    -- the specific fixes this release makes must be present and RIGHT
+    eq(people[7], 53, "people: BOY_1 -> YOUNGSTER 53, not the Sailor")
+    eq(people[9], 53, "people: BOY_2 -> YOUNGSTER 53")
+    eq(people[15], 23, "people: RICH_BOY -> RICH BOY 23, not the Sailor")
+    eq(people[17], 2, "people: FAT_MAN -> BREEDER 2, not the Sailor")
+    eq(people[18], 52, "people: POKEFAN_F -> POKéFAN 52, not the Sailor")
+    eq(people[47], 77, "people: LASS -> LASS 77, not Psychic 34")
+    eq(people[55], 0, "people: HIKER -> HIKER 0, not Ruin Maniac 16")
+    eq(people[26], 49, "people: WOMAN_4 -> a lone bust 49, not the Young Couple 78")
+    eq(people[65], 2, "people: MAN_4 -> a lone bust 2, not the Young Couple 78")
+    eq(people[30], false, "people: OLD_WOMAN declines -- the cart drew no old-woman bust")
+    eq(people[22], false, "people: EXPERT_F declines for the same reason")
+    eq(people[21], 9, "people: EXPERT_M -> EXPERT 9 (the old man)")
+  end
+end
+
+-- =====================================================================
 -- 7. FRLG REGRESSION -- the gate stays shut, the resolver is unchanged
 -- =====================================================================
 --
@@ -533,6 +635,50 @@ else
     local GameVersion = require("src.core.GameVersion")
     ok(type(GameVersion) == "table",
       "frlg: the engine's GameVersion is present")
+
+    -- =================================================================
+    -- 6c. THE COLOUR GATE -- Emerald has no per-speaker text colour
+    -- =================================================================
+    --
+    -- The defect this pins: the mod's coloursAllowPortrait() declines a box
+    -- drawn in the "neutral" colour, which on FireRed/LeafGreen means narration
+    -- (NEUTRAL == 3).  On EMERALD that colour is a CONSTANT -- the profile
+    -- switches the whole lookup off (profiles/emerald/font.lua:22,
+    -- npcTextColors = false), so frlg_font.lua:176 returns NEUTRAL for every
+    -- graphic.  Every Emerald box therefore arrived with npcColor == 3 and the
+    -- FRLG rule read all of them as narration -- the report "the mod loads but
+    -- no portraits have been showing during dialogue boxes".
+    --
+    -- This asserts the ENGINE FACT the fix rests on, using the real engine: the
+    -- colour is a constant on the Emerald profile and a real choice on FRLG.
+    -- If a future profile edit ever gave Emerald real colours, this fails and
+    -- forces the mod's bypass to be revisited rather than left in place stale.
+    do
+      local FrlgFont = package.loaded["src.ui.game3.frlg_font"]
+        or require("src.ui.game3.frlg_font")
+      local emeraldFont = require("src.core.game3.profiles.emerald.font")
+      ok(type(FrlgFont) == "table" and type(FrlgFont.getNpcTextColor) == "function",
+        "colour: the engine's FrlgFont.getNpcTextColor is present")
+      eq(type(emeraldFont) == "table" and emeraldFont.npcTextColors, false,
+        "colour: the Emerald profile disables per-speaker text colours")
+
+      -- Point the font service at the Emerald profile and prove the colour is
+      -- the SAME NEUTRAL for two graphics that are male and female on FRLG --
+      -- i.e. it carries no information at all on Emerald.
+      local realSync = FrlgFont.sync
+      FrlgFont.sync = function() return emeraldFont end
+      local neutral = FrlgFont.NPC_TEXT_COLOR and FrlgFont.NPC_TEXT_COLOR.NEUTRAL or 3
+      local c0 = FrlgFont.getNpcTextColor(0)
+      local c7 = FrlgFont.getNpcTextColor(7)
+      local c26 = FrlgFont.getNpcTextColor(26)
+      eq(c0, neutral, "colour: graphic 0 reads NEUTRAL on the Emerald profile")
+      eq(c7, neutral, "colour: graphic 7 reads NEUTRAL on the Emerald profile")
+      eq(c26, neutral, "colour: graphic 26 reads NEUTRAL on the Emerald profile")
+      eq(c0, c26,
+        "colour: the colour cannot tell one Emerald speaker from another")
+      FrlgFont.sync = realSync
+    end
+
 
     local function gameIsEmerald(id)
       GameVersion.set(id)
