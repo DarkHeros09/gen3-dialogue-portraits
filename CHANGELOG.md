@@ -1,5 +1,67 @@
 # Changelog
 
+## 1.3.2 — the field-move box stops wearing the last trainer you spoke to
+
+Reported:
+
+> When a player battles a trainer and then triggers an HM move dialogue box
+> (e.g., Cut, Strength, Surf), the dialogue box incorrectly displays the
+> portrait of the previously fought NPC instead of showing no portrait.
+
+— and, from the same report, "and also Rock Smash". That second name is not a
+second bug. It is the same box, so the fix covers every field move rather than
+a list of them.
+
+### The box that was never a conversation
+
+The HM message is not printed by a script. `src/core/game3/field.lua` shows it
+by calling `Message.show` **directly**:
+
+```
+Message.show(res.text)              -- the failure / refusal box
+Message.show(res.ask, callback)     -- the "Would you like to...?" prompt
+Message.show(payload.text, done)    -- the "used move" box, Field.executeFieldMove
+```
+
+— with **no `opts` and no `world.talk`**. The engine's `world.talk` seam is what
+tells this mod who is speaking, and a field move never raises it. So the box
+arrived with no press of its own, `speakerFor` fell through to the *record*,
+and the record — after a battle — still named the trainer the player had last
+spoken to. The HM box then wore that trainer's face.
+
+The rule the mod already keeps is that a box is only given a portrait when it
+belongs to somebody. A field-move text belongs to nobody: the cart gives it no
+speaker. The fix is a test at the top of `speakerFor` that answers `nil` for
+those texts, ahead of every other route.
+
+### Built from the cart's own table, not a list of strings
+
+The test is derived from the engine's `FieldMoves.TEXT` — the one place the
+cart's field-move strings live — rather than a hand-copied list. Two shapes are
+handled:
+
+* **Static** texts (`"Can't use that here."`, `"This tree looks like it can be
+  CUT down!"`) are matched by equality.
+* **Mon-name** texts (`"<nickname> used CUT!"`) have a player-chosen nickname in
+  them, so equality cannot work. They are resolved once with a printable
+  sentinel standing in every name slot, and the sentinel is turned into a Lua
+  pattern's `.*`. STRENGTH — whose text names the mon **twice** — is covered by
+  the same mechanism.
+
+Because it reads the cart's own table, a move added to the engine later is
+covered without an edit here, and a FireRed boot can never match an Emerald
+string (or the reverse). An *empty* build is retried rather than cached, so a
+box asked before the ROM's text tables are ready cannot disable the rule for
+the rest of the session.
+
+### What was checked
+
+All six luajit suites pass with 0 failures, including 25 new checks in the
+speaker suite that pin this box for Cut, Rock Smash, Surf, Strength and
+Waterfall — the "used move" boxes, the yes/no prompts and the refusals. On a
+real FireRed cart, all 19 of the engine's field-move texts resolve to nobody
+while an ordinary NPC line with the same record still draws its portrait.
+
 ## 1.3.2-emerald — an Emerald graphic borrows a FireRed bust
 
 The Emerald cart has no battle bust for several kinds of person — the Scientist,
