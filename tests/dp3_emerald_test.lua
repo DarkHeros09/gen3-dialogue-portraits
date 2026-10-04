@@ -315,6 +315,63 @@ withGame("emerald", function()
     eq(a3, nil, "resolve: a non-trainer object gets no portrait")
     eq(why3, nil, "resolve: and that is not reported as a missing piece")
 
+    -- ---- the mod's OWN Emerald art, and the OPENING-TUTORIAL report
+    --
+    -- "prof.birch front sprite should be provided in the game's beginning."
+    -- The opening scene is Route101's g3:081ebcde, whose "Hello! You over
+    -- there!" box is preceded by `applymovement localId=2` -- object 2 is
+    -- PROF_BIRCH (gfx 64), and its object carries NO scriptKey (the scene runs
+    -- off the bag beside him), so routes 1 and 2 are silent and the graphic is
+    -- the only fact.  Route 3b must therefore answer it from the cart's own
+    -- field-effect portrait, which is what the game itself shows at new-game.
+    do
+      -- A graphics-id speaker with no scriptKey and no name is the tutorial's
+      -- exact shape.
+      local tut = { gfx = 64, mapId = "Route101", localId = 2 }
+
+      -- With no image loader bound (headless), the shipped-art route declines
+      -- and the hand table's fallback still answers -- that ordering is the
+      -- point of keeping [64] = 24.
+      local noLoader = Emerald.assetArtFor(64)
+      eq(noLoader, nil, "asset: with no image loader bound, route 3b declines")
+
+      -- The table names Birch's art, and it is keyed by the gfx the cart uses.
+      eq(Emerald.ASSET_ART[64], "PROF_BIRCH",
+        "asset: gfx 64 (PROF_BIRCH) ships its own art")
+      eq(Emerald.ART_DIR, "emerald/art/",
+        "asset: shipped art lives under one directory")
+
+      -- With a loader bound, the file is asked for by name and the art comes
+      -- back in main.lua's shape -- no picture number, because it is not one.
+      local asked
+      local fakeImage = { getDimensions = function() return 64, 64 end }
+      Emerald.bind({ image = function(rel) asked = rel return fakeImage end })
+      local shipped = Emerald.assetArtFor(64)
+      ok(type(shipped) == "table" and shipped.image == fakeImage,
+        "asset: route 3b returns the shipped image")
+      eq(asked, "emerald/art/PROF_BIRCH.png",
+        "asset: and it asked for the file the table names")
+      eq(shipped and shipped.w, 64, "asset: the art carries its width")
+      eq(shipped and shipped.h, 64, "asset: the art carries its height")
+      eq(shipped and shipped.pic, nil,
+        "asset: shipped art is not a trainer picture and says so")
+
+      -- A loader that fails (no graphics context) must not raise and must not
+      -- answer -- it falls through to the routes below.
+      Emerald.bind({ image = function() error("no graphics context") end })
+      eq(Emerald.assetArtFor(64), nil,
+        "asset: a loader that raises is treated as 'no shipped art'")
+
+      -- The rect the cart ships FOR Birch must not be a trainer pic: pic 24 is
+      -- the EXPERT (a kneeling old woman), which is the wrong person.  Pin the
+      -- fact so a future edit cannot silently repoint him at it as an answer.
+      eq(Emerald.ASSET_ART[64] == 24, false,
+        "asset: Birch is NOT answered by the trainer picture 24")
+
+      -- Restore the module's loader binding for the checks that follow.
+      Emerald.bind({ image = nil })
+    end
+
     eq(Emerald.canDrawPortraits(), true,
       "resolve: canDrawPortraits() is true on a fully-backed Emerald boot")
   end)

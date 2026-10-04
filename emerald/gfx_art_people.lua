@@ -187,10 +187,17 @@ return {
   -- scientist in Hoenn wore the villain's face.  None of the three has an exact
   -- bust -- Emerald's class table has no Professor, no mother and no Scientist --
   -- so each takes the closest build by eye (.probe/_r6_decide.png):
-  [64] = 24,             -- PROF_BIRCH -> pic 24 (WINSTRATE): the one brown-haired
-                         --   man in pale garments, matching Birch's own overworld
-                         --   sprite (brown hair, white coat).  Not exact, but the
-                         --   right person, and the alternative was no face at all.
+  [64] = 24,             -- PROF_BIRCH -> pic 24 (WINSTRATE).  A FALLBACK ONLY:
+                         --   route 3b now serves the cart's OWN Birch portrait
+                         --   (field_effect.o:sNewGameBirch_Gfx, shipped as
+                         --   emerald/art/PROF_BIRCH.png), which is exact art and
+                         --   therefore answers first.  This entry survives for
+                         --   the case where that PNG cannot be loaded -- a
+                         --   graphics-context-less boot -- where a closest-build
+                         --   face still beats a bare box.  Note pic 24 is the
+                         --   "EXPERT" (a kneeling old woman), so on its own it
+                         --   was the WRONG person; it is kept only as a
+                         --   last-resort shape, not as an answer.
   [215] = 15,            -- MOM        -> pic 15 (AROMA LADY): brown hair, red top,
                          --   the closest female build to Mom's overworld sprite.
   [46] = 70,             -- SCIENTIST_1 -> pic 70: a young man in a WHITE COAT with a

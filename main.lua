@@ -1054,8 +1054,23 @@ return function(mod)
     -- so it never has to reach for an ambient global.  The reader is what lets
     -- it load emerald/trainer_ids.lua the same way this file loads
     -- art/trainer_ids.lua.  bind() is idempotent.
+    --
+    -- `image` is the mod's own asset loader, which is how the module serves the
+    -- cart's field-effect portraits it ships under emerald/art/ (Professor
+    -- Birch's own sNewGameBirch_Gfx art -- see Emerald.ASSET_ART).  It is the
+    -- same mod.assets:image call CustomArt/ uses, so there is one asset story on
+    -- both carts.  Wrapped, so a load with no graphics context simply leaves the
+    -- shipped-art route answering nil instead of raising.
     if type(Emerald.bind) == "function" then
-      pcall(Emerald.bind, { require = require, log = mod.log, read = readMod })
+      local function loadEmeraldArt(rel)
+        if type(mod.assets) ~= "table" or type(mod.assets.image) ~= "function" then
+          return nil
+        end
+        return mod.assets:image(rel)
+      end
+      pcall(Emerald.bind, {
+        require = require, log = mod.log, read = readMod, image = loadEmeraldArt,
+      })
     end
   end
 

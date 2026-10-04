@@ -114,6 +114,7 @@ local Emerald = {}
 local _require = nil
 local _log = nil
 local _read = nil
+local _image = nil
 
 function Emerald.bind(opts)
   opts = opts or {}
@@ -122,6 +123,7 @@ function Emerald.bind(opts)
     _log = opts.log
   end
   if type(opts.read) == "function" then _read = opts.read end
+  if type(opts.image) == "function" then _image = opts.image end
   return Emerald
 end
 
@@ -158,6 +160,29 @@ Emerald.GFX_ART_PATH    = "emerald/gfx_art.lua"
 Emerald.MAP_ART_PATH    = "emerald/map_art.lua"
 Emerald.GFX_NAMES_PATH  = "emerald/gfx_names.lua"
 Emerald.PEOPLE_PATH     = "emerald/gfx_art_people.lua"
+
+--- EMERALD-NATIVE ART the mod ships, keyed by the graphics id it answers for.
+--
+-- The trainer tables answer with a BATTLE bust, and Emerald has no battle bust
+-- for a great many story characters -- it has a hand-drawn 64x64 FIELD-EFFECT
+-- portrait instead.  Professor Birch is the case that matters: the cart draws
+-- him in `field_effect.o:sNewGameBirch_Gfx` (the art the game shows in Birch's
+-- own new-game speech, and the FIRST face a new player ever sees), but his
+-- overworld graphic wears no trainer class, so the measured tables cannot reach
+-- that art and the old entry pointed him at pic 24 -- the "EXPERT", a kneeling
+-- old woman, the wrong person by every measure.
+--
+-- These are shipped as PNGs under `emerald/art/` and loaded through the
+-- injected `image` loader (main.lua passes `mod.assets:image`).  A graphic whose
+-- entry lands here is served from the cart's own art, exactly as cut -- no crop,
+-- no colour pipeline -- the same way FireRed's Fame Checker portraits are.
+--
+-- The value is the file name under `emerald/art/` WITHOUT the extension, so the
+-- table is readable and the extension lives in one place (ART_DIR).
+Emerald.ART_DIR = "emerald/art/"
+Emerald.ASSET_ART = {
+  [64] = "PROF_BIRCH",   -- PROF_BIRCH -> the cart's own sNewGameBirch_Gfx portrait
+}
 
 --- Is this game id an Emerald id?
 --
@@ -315,6 +340,32 @@ function Emerald.gfxNames() return loadTable(Emerald.GFX_NAMES_PATH) end
 --- (emerald/gfx_art_people.lua).  Hand-authored, so it OUTRANKS the generated
 --- majorities -- see the file's header for why and how its values were decided.
 function Emerald.peopleArt() return loadTable(Emerald.PEOPLE_PATH) end
+
+-- The mod's OWN Emerald art for a graphics id, loaded as an engine image.
+--
+-- Unlike every other route in this module, this one does not go through the
+-- engine's trainer pack: the file is a 64x64 PNG the mod ships under
+-- `emerald/art/`, and it is drawn exactly as cut (no crop table, no colour
+-- pipeline) -- the same treatment main.lua gives a FireRed Fame Checker
+-- portrait.  Returns the art table main.lua's picArt shape expects, or nil when
+-- the graphic has no shipped art OR no loader was bound (a headless load must
+-- not fail just because there is no graphics context).
+--
+-- `false` in ASSET_ART is a deliberate decline, matching the other tables.
+function Emerald.assetArtFor(gfx)
+  gfx = tonumber(gfx)
+  if not gfx then return nil end
+  local entry = Emerald.ASSET_ART[gfx]
+  if entry == nil or entry == false then return nil end
+  if type(_image) ~= "function" then return nil end
+  local ok, image = pcall(_image, Emerald.ART_DIR .. entry .. ".png")
+  if not ok or image == nil then return nil end
+  local ok2, w, h = pcall(function() return image:getDimensions() end)
+  if not ok2 then return nil end
+  w, h = tonumber(w), tonumber(h)
+  if not w or not h or w <= 0 or h <= 0 then return nil end
+  return { image = image, w = w, h = h, asset = entry }
+end
 
 -- The trainer id for a speaker's script, or nil.  Pure table lookup, no engine
 -- reach, so it can be tested with a stub table.
@@ -605,6 +656,20 @@ function Emerald.artFor(speaker, opts)
       local classArt = viaPic(Emerald.picForClass(Emerald.classIdForName(gfxName)))
       if classArt then return classArt end
     end
+  end
+
+  -- 3b. the mod's OWN Emerald art for this graphic, when it ships one.
+  --
+  --     This is the cart's own field-effect portrait, served as a PNG.  It runs
+  --     here -- after the ID and NAME routes (an id or a name is a person, and
+  --     a person beats a graphic) but BEFORE the hand table -- because for the
+  --     graphics it covers it is EXACT art from the cart, where the hand table's
+  --     answer is a closest-build compromise by construction.  Professor Birch
+  --     is the case: the cart draws him in field_effect.o:sNewGameBirch_Gfx, and
+  --     that drawing is the first face a new player sees.
+  if gfx then
+    local assetArt = Emerald.assetArtFor(gfx)
+    if assetArt then return assetArt end
   end
 
   -- 4. the HAND-AUTHORED person table.  It runs BEFORE the two generated

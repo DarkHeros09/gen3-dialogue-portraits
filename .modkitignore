@@ -50,11 +50,15 @@ README.md
 # has none for (see CustomArt/README.md), and every file a PLAYER drops here is
 # their own business -- commit it or don't, it is not part of the mod.
 #
-# This mod ships no art at all: every portrait is cut at runtime out of the
-# engine's own extraction of the player's ROM, so there is nothing here that
-# needs to ride along.  CustomArt/README.md is deliberately NOT listed -- it is
-# the how-to and it ships.  Add a line here for anything you drop in locally so
-# a personal experiment never ends up in the package.
+# The mod itself ships almost no art: nearly every portrait is cut at runtime out
+# of the engine's own extraction of the player's ROM.  The ONE deliberate
+# exception is emerald/art/, which carries the cart's own field-effect portraits
+# for the Emerald story characters its trainer tables cannot reach -- currently
+# just PROF_BIRCH.png (Professor Birch's sNewGameBirch_Gfx art, the face the
+# game shows in his new-game speech).  emerald/art/ is NOT listed here, so those
+# files ride along; CustomArt/README.md is deliberately NOT listed either, since
+# it is the how-to and it ships.  Add a line here for anything you drop in
+# locally so a personal experiment never ends up in the package.
 
 # A guard, not a description of the tree.
 #
