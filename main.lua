@@ -2476,6 +2476,11 @@ return function(mod)
     setobjectxy = true, setobjectxyperm = true,
   }
 
+  -- The Champion's Room's post-battle ON_FRAME scene (see the opening-box rule
+  -- inside sceneSpeaker).  Named once, here, so the one place that reads it and
+  -- the one place that exempts it cannot drift.
+  local CHAMPIONS_ROOM_SCENE = "g3:08162b76"
+
   local function sceneSpeaker()
     -- The same question the press record asks, so it is asked once (see
     -- scriptRunning).  A scene only exists while its script is running.
@@ -2589,9 +2594,124 @@ return function(mod)
         if eo then return eo end
       end
     end
+    -- ------- the Champion's Room: the opening box, before anybody arrives
+    --
+    -- One scene needs a rule of its own, and the rule is narrow on purpose: it
+    -- fires for ONE script, on its text boxes that sit BEFORE the scene's first
+    -- `addobject`, and it answers the object already standing there.
+    --
+    -- FireRed/LeafGreen's post-Champion cutscene (Champion's Room, the ON_FRAME
+    -- script g3:08162b76) is a sequence with a NEWCOMER in the middle of it.
+    -- Measured off the cart's own rows: the player walks in (row 4
+    -- `applymovement 255`, the player, which is never a portrait), the RIVAL's
+    -- defeat line opens at row 26, OAK enters at row 28 (`addobject localId=2`,
+    -- graphic 71), and OAK then has every box after that.  The rival is on
+    -- stage from the moment the map loads; Oak is placed by the scene itself.
+    --
+    -- Two routes get the opening box wrong in opposite directions:
+    --   * The backward scan finds only the player's `applymovement 255`, and
+    --     0xFF is rejected (the player is not a portrait) -- so the scan walks
+    --     out of the frame empty.
+    --   * The last-resort sweep below then reads the entry script from its END
+    --     and finds the LAST object the scene moves -- row 54 `applymovement 2`,
+    --     which is OAK.  So the rival's "Why did I lose?" wore Oak's face.
+    --     The player's report: the rival's post-battle dialogue shows no
+    --     portrait / the wrong one.
+    --
+    -- The cart's own signal is unambiguous here, and it is the same signal the
+    -- rest of this function uses -- who is on stage -- read as a SET rather
+    -- than as recency:
+    --   * a localId that some ACTOR_OP row touches is a participant;
+    --   * a participant the scene also `addobject`s is a NEWCOMER -- it is not
+    --     there for the opening box, whatever the scene does with it later;
+    --   * the participant that is NOT added is the one who was already there,
+    --     and for a box that opens before the newcomer arrives, that is the
+    --     speaker.
+    -- Exactly one such object must exist, or the rule answers nothing (the
+    -- same "ambiguity answers nobody" discipline as the rest of the file).  Oak
+    -- never gets this face: his boxes are all AFTER row 28, so the row test
+    -- fails for every one of them and the rule is silent.  See
+    -- dp3_frlg_champ_rival_live / dp3_diag_sweep.
+    --
+    -- This block also reports whether the scene HAS a newcomer at all
+    -- (scenePlacesSomeone).  The last-resort sweep below is skipped only for a
+    -- scene with that structure: an end-first read is wrong precisely BECAUSE
+    -- the scene moves the arrival after its boxes, so the exemption is tied to
+    -- the fact that makes it necessary rather than to the script's name alone.
+    local scenePlacesSomeone = false
+    if vm._scriptKey == CHAMPIONS_ROOM_SCENE and ctx.pc
+        and ctx.pc.listKey and ctx.pc.index then
+      local rows = vm.scripts and vm.scripts[vm._scriptKey]
+      if type(rows) == "table" then
+        -- Which row of the ENTRY script this box belongs to.  The box is often
+        -- opened by a `callstd` stub, so the entry row is the call site on the
+        -- stack; when the box is an inline `message`, ctx.pc is the entry row.
+        local boxRow = tonumber(ctx.pc.index)
+        if ctx.pc.listKey ~= vm._scriptKey then
+          boxRow = nil
+          local stack = ctx.stack or {}
+          for i = #stack, 1, -1 do
+            local frame = stack[i]
+            if type(frame) == "table" and frame.listKey == vm._scriptKey then
+              boxRow = tonumber(frame.index); break
+            end
+          end
+        end
+        -- Does this scene place a newcomer at all?  Read over the WHOLE script
+        -- (an `addobject` anywhere means the scene introduces somebody), so it
+        -- answers even when the box's own row could not be established.
+        local newcomerAt
+        for i = 1, #rows do
+          local row = rows[i]
+          if type(row) == "table" and row.op == "addobject" then
+            local lid = tonumber(row.localId or row[1])
+            if lid and lid ~= 0xFF then newcomerAt = newcomerAt or i end
+          end
+        end
+        if newcomerAt then
+          scenePlacesSomeone = true
+          if boxRow and boxRow < newcomerAt then
+            -- Everyone the scene moves or turns.
+            local present = {}
+            for i = 1, #rows do
+              local row = rows[i]
+              if type(row) == "table" and ACTOR_OPS[row.op] then
+                local lid = tonumber(row.localId or row[1])
+                if lid and lid ~= 0xFF then present[lid] = true end
+              end
+            end
+            -- Of those, the one(s) the scene never adds -- already on stage.
+            local onStage, onStageCount = nil, 0
+            for lid in pairs(present) do
+              local isNewcomer = false
+              for i = 1, #rows do
+                local row = rows[i]
+                if type(row) == "table" and row.op == "addobject"
+                    and tonumber(row.localId or row[1]) == lid then
+                  isNewcomer = true; break
+                end
+              end
+              if not isNewcomer then
+                local okF, eo = pcall(Objects.find, lid)
+                if okF and type(eo) == "table" then
+                  onStage, onStageCount = eo, onStageCount + 1
+                end
+              end
+            end
+            if onStageCount == 1 then return onStage end
+          end
+        end
+      end
+    end
+
     -- Last resort: the entry point, in case the scene is reached by a `goto`
-    -- that left no frame behind.
-    if type(vm._scriptKey) == "string" then
+    -- that left no frame behind.  A scene that PLACES a newcomer is exempt: its
+    -- end-first read answers the arrival (the last object it moves), which is
+    -- exactly the wrong person for the boxes that open before he appears -- the
+    -- Champion's Room defect above.  Everywhere else -- including this same
+    -- script read on a build where it places nobody -- the sweep still answers,
+    -- because then nothing in it is a later arrival to mistake for the speaker.
+    if type(vm._scriptKey) == "string" and not scenePlacesSomeone then
       local eo = nearest(vm._scriptKey)
       if eo then return eo end
     end
@@ -2736,6 +2856,121 @@ return function(mod)
     return false
   end
 
+  -- ------- the engine's own "system" boxes: the game talking, not a person
+  --
+  -- A handful of boxes the FIELD ENGINE prints on its own are not anybody's
+  -- dialogue, and none of them may wear a portrait.  Three are reported:
+  --
+  --   Text_RepelWoreOff   "REPEL's effect wore off…"   (repel expired)
+  --   gText_PkmnFainted3  "<name> fainted…"            (poison faint on the map)
+  --   DayCare_Text_Huh    "Huh?"                       (an egg is hatching)
+  --
+  -- All three are printed from src/core/game3/step_events.lua through
+  -- Hud.openMessage -> Message.show, with NO `opts` of their own beyond a `done`
+  -- callback -- so the box arrives with no press behind it, and speakerFor falls
+  -- through to the RECORD: the trainer the player last fought.  That is the
+  -- report -- "after fighting a trainer then using Repel, when Repel expires its
+  -- box shows the previously fought trainer's portrait" -- and it is the same
+  -- defect as the HM field-move one (see fieldMoveText): a box with no speaker
+  -- wearing the last speaker's face.
+  --
+  -- The rule is built from the ENGINE'S OWN keys, exactly as fieldMoveText is,
+  -- and not from a hand-copied list of strings:
+  --   * the engine's profile names two of them per game
+  --     (profiles/emerald/field.lua: `eggHatchText`, `poisonFaintText`), and the
+  --     call sites fall back to the FRLG literals when the profile is silent --
+  --     so those two literals are read from step_events' own choice, and the
+  --     profile's key is preferred when it exists;
+  --   * `Text_RepelWoreOff` has no profile field (it is the same key in both
+  --     carts) and is named once here.
+  -- RomText answers each key with the cart's OWN text, so an FRLG boot never
+  -- matches an Emerald string or the reverse.
+  --
+  -- Two shapes of text, as everywhere in this file: the STATIC boxes
+  -- (Repel, "Huh?") are matched by equality; the mon-name one
+  -- ("<name> fainted…") has the player's nickname in front of it, so it is
+  -- resolved ONCE with a printable sentinel in the name slot and the sentinel is
+  -- turned into a Lua pattern's `.*` -- the pattern comes from the cart's text,
+  -- not from a guess, and it survives a nickname containing anything at all.
+  local SYSBOX_SENTINEL = "\1SYSNAME\1"
+  local systemBoxTests             -- built on first use; nil until then
+
+  local function buildSystemBoxTests()
+    local tests = {}
+    local okR, RomText = pcall(require, "src.core.game3.rom_text")
+    if not okR or type(RomText) ~= "table" or type(RomText.plain) ~= "function" then
+      return tests
+    end
+
+    -- The mon-name key, with a sentinel standing in the name slot.
+    local function addPattern(key)
+      local okp, sample = pcall(function() return RomText.plain(key) end)
+      if okp and type(sample) == "string" and sample ~= "" then
+        -- gText_PkmnFainted3 is "<name> fainted…" -- the name is a strvar, so
+        -- plain() has ALREADY dropped it and left the tail.  The cart's own tail
+        -- is what is matched, as a suffix, so the nickname never has to be known.
+        tests[#tests + 1] = { suffix = sample }
+      end
+      -- And a sentinel-filled form when the key resolves through a strvar-aware
+      -- call, so the whole sentence is pinned when it can be.
+      local oks, full = pcall(function() return RomText.plain(key, { stringVars = { SYSBOX_SENTINEL } }) end)
+      if oks and type(full) == "string" and full ~= ""
+          and full:find(SYSBOX_SENTINEL, 1, true) then
+        local function esc(s)
+          return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+        end
+        local pattern = esc(full):gsub(esc(SYSBOX_SENTINEL), ".*")
+        tests[#tests + 1] = { pattern = "^" .. pattern .. "$" }
+      end
+    end
+
+    -- The engine's profile, when it names these boxes for this game.
+    local okP, profile = pcall(function()
+      return require("src.core.game3.profile").forSession()
+    end)
+    local field = (okP and type(profile) == "table") and profile.field or nil
+    if type(field) == "table" then
+      if type(field.poisonFaintText) == "string" then addPattern(field.poisonFaintText) end
+      if type(field.eggHatchText) == "string" then
+        local oke, v = pcall(function() return RomText.plain(field.eggHatchText) end)
+        if oke and type(v) == "string" and v ~= "" then tests[#tests + 1] = { exact = v } end
+      end
+    end
+
+    -- The FRLG literals, which are what each call site uses when the profile is
+    -- silent (step_events.lua:277/308/396).  Asking them all unconditionally is
+    -- safe: a key the cart does not have simply resolves to nothing and is
+    -- skipped, and one it does have is the same string the profile would give.
+    for _, k in ipairs({ "Text_RepelWoreOff", "DayCare_Text_Huh" }) do
+      local okv, v = pcall(function() return RomText.plain(k) end)
+      if okv and type(v) == "string" and v ~= "" then tests[#tests + 1] = { exact = v } end
+    end
+    addPattern("gText_PkmnFainted3")
+    return tests
+  end
+
+  -- Is this box one of the engine's own system boxes?  Asked of the cart's own
+  -- strings, and of both shapes Message.show can hand over -- a plain string, or
+  -- the text IR token list RomText.box builds.
+  local function isSystemBox(text)
+    local s = plainText(text)
+    if type(s) ~= "string" or s == "" then return false end
+    if systemBoxTests == nil or #systemBoxTests == 0 then
+      systemBoxTests = buildSystemBoxTests()
+    end
+    for i = 1, #systemBoxTests do
+      local t = systemBoxTests[i]
+      if t.exact and s == t.exact then return true end
+      if t.pattern and s:match(t.pattern) then return true end
+      -- A tail match, for the mon-name box whose name plain() has already
+      -- dropped: the cart's own tail is enough, and it cannot false-positive on
+      -- an ordinary line that merely contains it (the tail carries the ellipsis
+      -- and the shape is a whole box).
+      if t.suffix and #t.suffix > 0 and s:sub(-#t.suffix) == t.suffix then return true end
+    end
+    return false
+  end
+
   -- ------- the resolver
   local function speakerFor(text)
     -- A field-move box names nobody, and it OUTRANKS every other route below --
@@ -2743,6 +2978,12 @@ return function(mod)
     -- box that has no speaker AT ALL rather than a speaker to correct.  See
     -- fieldMoveText for why this is a class and not a one-off.
     if fieldMoveText(text) then return nil end
+
+    -- The engine's own system boxes too -- Repel wore off, a poison faint, the
+    -- egg hatch -- and for the same reason and at the same rank: they are the
+    -- game talking, not a person, so they must beat the press record rather than
+    -- fall through to it.  See isSystemBox.
+    if isSystemBox(text) then return nil end
 
     -- ONE-OFF, and deliberately not a rule.  "A MACHOP is stomping the land
     -- flat." is the player's own observation about the Machop standing in front

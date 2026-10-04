@@ -3303,6 +3303,304 @@ ok(F.speakerFor("This rock appears to be breakable.") ~= nil,
   "nor half of an ask -- the anchored pattern needs the whole sentence")
 F.forgetSpeaker()
 
+-- ------- 20b. THE ENGINE'S OWN SYSTEM BOXES WEAR NOBODY'S FACE
+--
+-- The reported "after fighting a trainer then using Repel, when Repel expires
+-- its box shows the previously fought trainer's portrait".  Same defect and same
+-- shape as section 20: three boxes the FIELD ENGINE prints on its own -- from
+-- src/core/game3/step_events.lua through Hud.openMessage -> Message.show -- with
+-- no press behind them:
+--
+--   Text_RepelWoreOff   "REPEL's effect wore off…"   (repel expired)
+--   gText_PkmnFainted3  "<name> fainted…"            (poison faint)
+--   DayCare_Text_Huh    "Huh?"                       (an egg is hatching)
+--
+-- The mod builds this test from the cart's OWN text keys, resolved through
+-- RomText, exactly as the field-move section does.  This suite has no ROM
+-- bundle, so the seam the engine itself provides -- RomText.plain, read FIRST by
+-- the mod -- is stubbed with the FireRed strings, measured off the cart.
+-- A FRESH instance is needed because the mod caches its test list once.
+io.write("-- the engine's own system boxes wear nobody's face\n")
+
+local RomTextMod = require("src.core.game3.rom_text")
+local savedRomPlain = RomTextMod.plain
+local SYS_TEXT = {
+  Text_RepelWoreOff  = "REPEL's effect wore off\226\128\166",
+  DayCare_Text_Huh   = "Huh?",
+  -- The cart's own tail; plain() with no ctx drops the leading strvar, so this
+  -- is what the mod sees -- its `suffix` match is built on exactly this.
+  gText_PkmnFainted3 = " fainted\226\128\166",
+}
+RomTextMod.plain = function(key, ctx)
+  if type(key) == "string" and SYS_TEXT[key] ~= nil then
+    -- With a mon name supplied, mirror the engine's substitution.
+    if ctx and type(ctx.stringVars) == "table" and ctx.stringVars[1] then
+      if key == "gText_PkmnFainted3" then
+        return tostring(ctx.stringVars[1]) .. SYS_TEXT[key]
+      end
+    end
+    return SYS_TEXT[key]
+  end
+  return savedRomPlain(key, ctx)
+end
+
+local sysMod = { path = MOD_ROOT, exports = {}, generation = 3 }
+sysMod.log = { info = function() end, warn = function() end, error = function() end }
+sysMod.options = mod.options
+sysMod.read = mod.read
+sysMod.content = mod.content
+sysMod.assets = mod.assets
+local Message3    = require("src.ui.game3.message")
+local OptionRows3 = require("src.ui.game3.option_rows")
+local savedMsgWrapped3  = Message3.dp3_wrapped
+local savedRowsWrapped3 = OptionRows3.dp3_build_wrapped
+Message3.dp3_wrapped = nil
+OptionRows3.dp3_build_wrapped = nil
+local SYS_OWNER = "dp3-sysbox-test-instance"
+local sysUnsubs = {}
+local sysHooks, sysEvents = {}, {}
+sysHooks.wrap = function(_, name, fn) Runtime.hooks:wrap(name, fn, 100, SYS_OWNER) end
+sysEvents.on = function(_, name, fn)
+  sysUnsubs[#sysUnsubs + 1] = Runtime.events:on(name, fn, 100, SYS_OWNER)
+end
+sysMod.hooks = sysHooks
+sysMod.events = sysEvents
+local sysBoot = assert(loadfile(MOD_ROOT .. "/main.lua"))
+local sysRet = sysBoot(sysMod)
+if type(sysRet) == "function" then sysRet(sysMod) end
+local B = sysMod.exports
+ok(type(B.speakerFor) == "function", "the system-box instance exports speakerFor")
+
+local function withTrainerB(fn)
+  B.forgetSpeaker()
+  Runtime.emit("world.trainer_engaged",
+    { npc = { trainerType = 27, sprite = "SPRITE_FISHER" }, trainerClass = 27 })
+  return fn()
+end
+ok(withTrainerB(function() return B.speakerFor("I like shorts!") end) ~= nil,
+  "with a trainer on record, an ordinary box still names somebody")
+
+withTrainerB(function()
+  eq(B.speakerFor(SYS_TEXT.Text_RepelWoreOff), nil,
+    "the REPEL-wore-off box names nobody (plain string)")
+  eq(B.speakerFor({ { s = SYS_TEXT.Text_RepelWoreOff, t = "text" } }), nil,
+    "the REPEL-wore-off box names nobody (text IR token list)")
+  eq(B.speakerFor(SYS_TEXT.DayCare_Text_Huh), nil,
+    "the egg-hatch box names nobody")
+  eq(B.speakerFor({ { t = "strvar", n = 1 }, { s = SYS_TEXT.gText_PkmnFainted3, t = "text" } }), nil,
+    "the poison-faint box names nobody (a mon name is tolerated)")
+  eq(B.speakerFor("MR 100%% fainted\226\128\166"), nil,
+    "and a nickname with a %% is tolerated by the faint pattern")
+end)
+
+-- The false-positive guard: an ordinary NPC line is not one of these boxes.
+ok(withTrainerB(function() return B.speakerFor("I like shorts!") end) ~= nil,
+  "an ordinary box after the system texts still names its speaker")
+ok(withTrainerB(function() return B.speakerFor("Huh?  What did you say?") end) ~= nil,
+  "a line that merely STARTS like the egg box is not the egg box")
+ok(withTrainerB(function() return B.speakerFor("REPEL's effect is handy.") end) ~= nil,
+  "nor is a line that merely mentions REPEL")
+B.forgetSpeaker()
+
+for _, off in ipairs(sysUnsubs) do off() end
+Runtime.hooks:removeOwner(SYS_OWNER)
+RomTextMod.plain = savedRomPlain
+Message3.dp3_wrapped = savedMsgWrapped3
+OptionRows3.dp3_build_wrapped = savedRowsWrapped3
+
+-- ------- 21. THE POST-CHAMPION SCENE: THE RIVAL'S LINE IS NOT OAK'S
+--
+-- The reported "after beating the Elite Four then the Rival, the Rival's box
+-- shows Oak's portrait -- and his defeat line must keep that portrait until
+-- Professor Oak arrives".  In the Champion's Room (PokemonLeague_ChampionsRoom)
+-- the post-battle scene is the map's ON_FRAME script g3:08162b76.  Its objects
+-- are localId 1 = graphic 72 (SPRITE_BLUE, the RIVAL) and localId 2 = graphic
+-- 71 (SPRITE_OAK).  The rival's own opening line -- "Why? Why did I lose?…" --
+-- is at row 26; by then the script has moved only the PLAYER (row 4,
+-- `applymovement 255`, rejected because 0xFF is not an object).  Oak is placed
+-- by the scene itself, at row 28 (`addobject localId=2`).
+--
+-- sceneSpeaker scans the running script BACKWARD from the box for the object it
+-- last moved, and the frames scanned carry the box's own row.  For the rival's
+-- opening box that scan answers nobody (only the player was moved), and the
+-- LAST-RESORT sweep used to read the whole script from its END -- where the
+-- scene moves OAK at rows 41/47/54, after the box -- so the rival's line wore
+-- OAK's face.  That is the bug.
+--
+-- The fix is a rule scoped to this one script: for a box that opens BEFORE the
+-- scene's first `addobject`, the speaker is the object the scene moves that it
+-- does NOT add -- the one already on stage.  Oak's boxes are all AFTER row 28,
+-- so the rule is silent for them and they resolve exactly as before.
+--
+-- The rows below are the real script, trimmed to the actors and the boxes; the
+-- localIds and the graphics ids are the cart's own (see the FRLG map cache).
+io.write("-- the post-Champion scene: the rival's line is not Oak's\n")
+
+local hadSpace2 = package.loaded["src.core.game3.scripting.space"]
+local hadObjects2 = package.loaded["src.core.game3.objects"]
+
+local CH_RIVAL = { sprite = "SPRITE_BLUE", graphicsId = 72, localId = 1, def = {} }
+local CH_OAK   = { sprite = "SPRITE_OAK",  graphicsId = 71, localId = 2, def = {} }
+package.loaded["src.core.game3.objects"] = {
+  find = function(id)
+    if id == 1 then return CH_RIVAL end
+    if id == 2 then return CH_OAK end
+    return nil
+  end,
+}
+-- Row numbers are 1-based and match the cart's script, so the box rows and the
+-- movement rows sit where the real scene has them.
+local CH_ROWS = {
+  { op = "lockall" }, { op = "textcolor" }, { op = "setflag" },     -- 1-3
+  { op = "applymovement", localId = 255 },                          -- 4  the PLAYER
+  { op = "waitmovement" }, { op = "delay" },                        -- 5-6
+  { op = "checkflag" }, { op = "call_if" },                         -- 7-8
+  { op = "checkflag" }, { op = "call_if" },                         -- 9-10
+  { op = "special" }, { op = "compare_var_to_value" }, { op = "goto_if" }, -- 11-13
+  { op = "setflag" }, { op = "setflag" }, { op = "savebgm" },       -- 14-16
+  { op = "checkflag" }, { op = "call_if" },                         -- 17-18
+  { op = "checkflag" }, { op = "call_if" },                         -- 19-20
+  { op = "setflag" }, { op = "clearflag" }, { op = "setflag" }, { op = "setflag" }, -- 21-24
+  { op = "loadword" },                                              -- 25
+  { op = "callstd", std = 4 },                                      -- 26 BOX (rival)
+  { op = "playbgm" }, { op = "addobject", localId = 2 },            -- 27-28
+  { op = "loadword" }, { op = "callstd", std = 4 },                 -- 29-30 BOX (oak)
+  { op = "closemessage" },                                          -- 31
+  { op = "applymovement", localId = 255 },                          -- 32 player
+  { op = "applymovement", localId = 1 },                            -- 33 rival
+  { op = "applymovement", localId = 2 },                            -- 34 oak
+  { op = "waitmovement" }, { op = "delay" },                        -- 35-36
+  { op = "specialvar" }, { op = "bufferspeciesname" },              -- 37-38
+  { op = "loadword" }, { op = "callstd", std = 4 },                 -- 39-40 BOX (oak)
+  { op = "applymovement", localId = 2 },                            -- 41 oak
+  { op = "applymovement", localId = 1 },                            -- 42 rival
+  { op = "waitmovement" },                                          -- 43
+  { op = "loadword" }, { op = "callstd", std = 4 },                 -- 44-45 BOX (oak)
+  { op = "closemessage" },                                          -- 46
+  { op = "applymovement", localId = 2 },                            -- 47 oak
+  { op = "waitmovement" }, { op = "delay" },                        -- 48-49
+  { op = "loadword" }, { op = "callstd", std = 4 },                 -- 50-51 BOX (oak)
+}
+local CH_SCRIPTS = {
+  ["std:4"] = { { op = "message" }, { op = "waitmessage" },
+                { op = "waitbuttonpress" }, { op = "return" } },
+  ["g3:08162b76"] = CH_ROWS,
+}
+local function champBox(callstdRow)
+  package.loaded["src.core.game3.scripting.space"] = { vm = {
+    isRunning = function() return true end,
+    ctx = { pc = { listKey = "std:4", index = 2 },
+            stack = { { listKey = "g3:08162b76", index = callstdRow } } },
+    _scriptKey = "g3:08162b76",
+    scripts = CH_SCRIPTS,
+  } }
+end
+
+-- The rival's line, with NO press on record -- the reported state, a scene
+-- entered straight from the battle's end.  The scene moves the rival and never
+-- adds him, so the object already on stage is the rival himself.  Before the
+-- fix this box drew OAK's face (the last-resort sweep read the script from its
+-- end and found Oak at row 54).
+champBox(26)
+X.forgetSpeaker()
+local bareRival = X.speakerFor(
+  "Why?\nWhy did I lose?\n\nDarn it! You're the new POKéMON\nLEAGUE CHAMPION!")
+eq(bareRival and bareRival.gfx, 72,
+  "with no record the rival's line names the RIVAL -- not Oak's 71")
+
+-- ...and it is the rival when a record exists too (the player just beat him).
+champBox(26)
+X.forgetSpeaker()
+Runtime.emit("world.trainer_engaged",
+  { npc = CH_RIVAL, trainerClass = 89, trainerId = 1 })
+local rline = X.speakerFor(
+  "Why?\nWhy did I lose?\n\nDarn it! You're the new POKéMON\nLEAGUE CHAMPION!")
+eq(rline and rline.gfx, 72,
+  "and with the rival on record it is still the RIVAL's graphic, not Oak's 71")
+
+-- THE PORTRAIT HOLDS.  The rows between the rival's box (26) and Oak's (30)
+-- stage nobody and add nobody: playbgm, then `addobject 2` (Oak ARRIVES), then
+-- loadword.  Re-asking at the rival's own row must still draw the rival -- the
+-- face does not flip to Oak the moment he appears.
+champBox(26)
+X.forgetSpeaker()
+ok(X.speakerFor("Why?\nWhy did I lose?") ~= nil,
+  "the rival's defeat box draws a portrait as the scene opens")
+local held = X.speakerFor("Why?\nWhy did I lose?")
+eq(held and held.gfx, 72,
+  "the rival's portrait holds through the intervening rows until Oak arrives")
+
+-- Oak's OWN boxes still resolve to Oak.  Row 30 is Oak's first line, after the
+-- addobject, and it must be OAK -- the newcomer rule must not steal it.
+champBox(30)
+X.forgetSpeaker()
+local oakHello = X.speakerFor("OAK: PLAYER!")
+eq(oakHello and oakHello.name, "OAK",
+  "Oak's first box -- the one after the rival's -- is OAK's")
+eq(oakHello and oakHello.gfx ~= 72, true,
+  "and it does not wear the rival's face (never gfx 72)")
+
+-- ...and so do the rest of Oak's boxes.
+champBox(40)
+X.forgetSpeaker()
+local oakline = X.speakerFor("OAK: So, you've won!\nSincerely, congratulations!")
+eq(oakline and oakline.name, "OAK", "Oak's congratulation box names OAK")
+champBox(45)
+X.forgetSpeaker()
+local oakscold = X.speakerFor("OAK: BLUE\226\128\166\nI'm disappointed in you.")
+eq(oakscold and oakscold.name, "OAK", "and Oak's scolding box names OAK too")
+champBox(51)
+X.forgetSpeaker()
+local oakbye = X.speakerFor("OAK: PLAYER.\n\nYou understand POKéMON better than anyone.")
+eq(oakbye and oakbye.name, "OAK", "and Oak's parting box names OAK")
+
+-- The rule is SILENT for a script it was not written for: an ordinary scene
+-- that stages its speaker by moving him BEFORE the box is answered by recency,
+-- exactly as before.
+package.loaded["src.core.game3.scripting.space"] = { vm = {
+  isRunning = function() return true end,
+  ctx = { pc = { listKey = "std:4", index = 2 },
+          stack = { { listKey = "g3:staged", index = 3 } } },
+  _scriptKey = "g3:staged",
+  scripts = {
+    ["std:4"] = { { op = "message" }, { op = "return" } },
+    ["g3:staged"] = {
+      { op = "applymovement", localId = 1 },   -- 1 rival staged
+      { op = "loadword" },                     -- 2
+      { op = "callstd", std = 4 },             -- 3 BOX (the opening box)
+      { op = "addobject", localId = 2 },       -- 4 Oak enters later
+    },
+  },
+} }
+X.forgetSpeaker()
+local staged = X.speakerFor("A line from a scene that staged its speaker")
+eq(staged and staged.gfx, 72,
+  "an ordinary scene that stages its speaker is untouched by the rule")
+
+-- The last-resort sweep is still there for the scene it was written for: a box
+-- reached by a `goto` with no frame.  This script moves only Oak (never adds
+-- him), so an end-first read is right and the sweep answers him.
+package.loaded["src.core.game3.scripting.space"] = { vm = {
+  isRunning = function() return true end,
+  ctx = { pc = { listKey = "std:4", index = 2 }, stack = {} },
+  _scriptKey = "g3:goto-scene",
+  scripts = {
+    ["std:4"] = { { op = "message" }, { op = "return" } },
+    ["g3:goto-scene"] = {
+      { op = "applymovement", localId = 2 },   -- Oak, staged before the box
+      { op = "loadword" },
+      { op = "callstd", std = 4 },             -- BOX
+    },
+  },
+} }
+X.forgetSpeaker()
+local viaGoto = X.speakerFor("A line the goto opened")
+eq(viaGoto and viaGoto.gfx, 71,
+  "the end-first sweep still answers for a goto that left no frame (Oak)")
+
+package.loaded["src.core.game3.scripting.space"] = hadSpace2
+package.loaded["src.core.game3.objects"] = hadObjects2
+
 -- put the engine and the install sentinels back, so the suite's own instance is
 -- the one installed when this file ends.
 for _, off in ipairs(fmUnsubs) do off() end
