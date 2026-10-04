@@ -146,6 +146,9 @@ return {
   -- (.probe/drivers/dp3_emerald_classdump.lua).
   pairSide = {
     [6] = "left",      -- TWIN       -- both twins are the same girl; either half will do
+    [8] = "left",      -- GIRL_1     -- the cart draws her as one of the Twins; either half will do
+    [10] = "left",      -- GIRL_2     -- ditto
+    [12] = "left",      -- LITTLE_GIRL -- ditto
     [67] = "right",      -- REPORTER_M -- his overworld frame holds the camera too, so the right half
     [68] = "left",      -- REPORTER_F -- the interviewer holding the microphone
     [110] = "right",      -- CAMERAMAN  -- the one holding the camera

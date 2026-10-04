@@ -149,6 +149,28 @@ local SLOT = INSET_ART + 2 * INSET_PAD  -- the slot the art is fitted into: 32
 local SLOT_TW = SLOT / 8                -- ...which is 4 columns
 local INSET_RESERVE_TW = SLOT_TW + math.max(ARROW_TW, INSET_GAP_TW)
 
+-- Where a SHIPPED asset is cut, in source px: x, y, size.
+--
+-- Route 3b's art (emerald/init.lua, ASSET_ART) is the cart's own field-effect
+-- portrait shipped as a PNG.  It is drawn with a rectangle of its own rather
+-- than through the crop tables -- see rectFor's `asset` branch for why.
+--
+-- The rectangle is NOT (0, 0): a shipped PNG is a FULL-BODY figure, and the top
+-- left 32x32 of one is a shoulder, not a face.  The shipped Birch art is 64x64
+-- with the figure at rows 1..63, and its head band (the top 45% of the figure)
+-- measured at rows 1..28, columns 9..48 -- centre x = 28.  A 32px window
+-- centred on that head is therefore x = 28 - 16 = 12, y = 1 to put the head at
+-- the top of the frame with the shoulders below it, which is the same framing
+-- the crop tables give a trainer bust.  Measured, not guessed:
+-- .probe/_em_birch_window_pick.png shows 12,1 against 0,0 / 16,1 / 12,7 / 12,14.
+--
+-- One rectangle serves every shipped asset, because there is exactly one today
+-- (PROF_BIRCH.png) and they are all cut from the same new-game-speech figure.
+-- A second, differently-framed asset would need its own entry here -- keyed by
+-- the file stem rectFor already has as `key` -- which is why rectFor passes the
+-- key through rather than this being a bare constant.
+local ASSET_CROP = { x = 12, y = 1, size = 32 }
+
 -- The panel FRAMED and MARGIN draw around a portrait.
 --
 -- The panel is a WINDOW, not a frame that hugs the art: the same one-tile border
@@ -1071,6 +1093,64 @@ return function(mod)
       pcall(Emerald.bind, {
         require = require, log = mod.log, read = readMod, image = loadEmeraldArt,
       })
+      -- The byte->Image factory the SHARED FireRed route needs
+      -- (emerald/init.lua shareArtFor, route 7).
+      --
+      -- Route 3b loads a PNG by relative path; a borrowed FireRed bust arrives
+      -- as raw 64x64 RGBA bytes read out of the other cart's cache, so it needs
+      -- a texture built FROM BYTES.  This is the same engine call the engine's
+      -- own TrainerPic.front makes (love.image.newImageData + newImage with a
+      -- nearest filter), made here because a mod's sandbox has no guarantee of
+      -- love.image and because the engine keeps that service behind its own
+      -- cache.  Returns nil, never raises, when there is no graphics context --
+      -- which is what makes the shared route answer nil in a headless load.
+      local function emeraldImageFromBytes(bytes, w, h)
+        if not (love and love.image and love.graphics) then return nil end
+        if type(bytes) ~= "string" or #bytes < w * h * 4 then return nil end
+        local ok, imageData = pcall(love.image.newImageData, w, h, "rgba8", bytes)
+        if not ok or not imageData then return nil end
+        local image = love.graphics.newImage(imageData)
+        if image and image.setFilter then image:setFilter("nearest", "nearest") end
+        return image
+      end
+      if type(Emerald.bindShareImage) == "function" then
+        pcall(Emerald.bindShareImage, emeraldImageFromBytes)
+      end
+      -- A seam for the headless suites, and ONLY for them.
+      --
+      -- The live loader above reads `mod.assets:image` through a closure, and
+      -- `mod` is not reachable from a test -- the engine's Loader keeps the api
+      -- handle private.  So a suite that wants to prove route 3b (the shipped
+      -- Birch art) cannot swap the loader the way it would swap a global.
+      --
+      -- This exports the module's own bind(), narrowed to the image loader, so a
+      -- test can install one without a graphics context.  It is the same bind()
+      -- emerald/init.lua already documents, not a new capability, and passing
+      -- nil restores the live loader -- so nothing in production reads it and a
+      -- real boot is unaffected either way.
+      mod.exports.bindEmeraldImage = function(loader)
+        if loader == nil then
+          pcall(Emerald.bind, { image = loadEmeraldArt })
+        elseif type(loader) == "function" then
+          -- accept both `f(rel)` and the colon form `f(self, rel)`
+          pcall(Emerald.bind, { image = function(rel) return loader(mod.assets, rel) end })
+        end
+        return true
+      end
+      -- The matching seam for the SHARED route's byte->Image factory, for the
+      -- same reason: a suite that wants to prove route 7 (a borrowed FireRed
+      -- bust) must be able to install a factory that returns a stub image
+      -- without a graphics context.  nil restores the live factory, so nothing
+      -- in production reads this.
+      mod.exports.bindEmeraldShareImage = function(factory)
+        if type(Emerald.bindShareImage) ~= "function" then return false end
+        if factory == nil then
+          pcall(Emerald.bindShareImage, emeraldImageFromBytes)
+        elseif type(factory) == "function" then
+          pcall(Emerald.bindShareImage, factory)
+        end
+        return true
+      end
     end
   end
 
@@ -2734,7 +2814,70 @@ return function(mod)
     return nil
   end
 
-  local function rectFor(kind, key, speaker)
+  local function rectFor(kind, key, speaker, origin)
+    -- ------- shipped ASSET art: its own measured window, not a cart table
+    --
+    -- `kind == "asset"` is route 3b's own art: the cart's field-effect portrait,
+    -- shipped as a PNG.  It carries no picture id, so it cannot be keyed into
+    -- either crop table -- the tables below are keyed by trainer-picture id, a
+    -- lookup would miss, and the miss would fall to a default window that frames
+    -- the chest of a full-body figure.  So an asset is cut with its own measured
+    -- rectangle instead.
+    --
+    -- The rectangle is NOT the art's full extent.  A shipped PNG is a whole
+    -- standing figure, and taking its top-left corner yields a shoulder rather
+    -- than a face -- measured, and exactly the defect the first draft of this
+    -- fix had.  ASSET_CROP is the measured head-band window for the shipped
+    -- figure (see its declaration), which frames it the way the cart tables
+    -- frame a trainer bust.
+    --
+    -- This runs BEFORE the cart tables and before `speakers` because it is a
+    -- property of the source, not a preference: an asset has no picture id for
+    -- either table to key on, and a per-speaker override on an FRLG table must
+    -- never reach an Emerald asset.
+    --
+    -- `key` is the shipped file stem (set in portraitFor), so a second,
+    -- differently-framed asset can be filed against its own name here later
+    -- without moving this branch.
+    if kind == "asset" then
+      return { x = ASSET_CROP.x, y = ASSET_CROP.y, size = ASSET_CROP.size }
+    end
+
+    -- ------- a BORROWED FireRed bust: cut by the FIRERED table
+    --
+    -- `origin == "firered"` marks route 7's shared art (emerald/init.lua
+    -- shareArtFor).  Such an entry carries a FIRERED picture id, and its image
+    -- is FireRed's own 64x64 bust -- so its window must come from the FIRERED
+    -- crop table below, whose keys ARE FireRed picture ids and whose rectangles
+    -- were measured off FireRed art.
+    --
+    -- Without this branch a borrowed bust would be cut by whatever table the
+    -- boot's GAME selects -- and on an Emerald boot that is CROPS_E, keyed by
+    -- EMERALD picture ids.  The two number spaces overlap, so a borrowed FireRed
+    -- bust would be framed by the rectangle of an unrelated Emerald picture: the
+    -- same "two number spaces, one table" defect the Emerald branch below was
+    -- written to end, arriving from the other side.  The origin is therefore
+    -- checked FIRST, before the game decides, because it is a fact about the
+    -- ARTWORK rather than about the boot.
+    --
+    -- Falling through to the FireRed table is safe for a borrowed id: the table
+    -- is keyed by FireRed picture, and its own default is the FireRed bust
+    -- default, which is the right shape for a FireRed bust that has no entry.
+    if origin == "firered" then
+      local rect = asRect(CROPS.trainers and CROPS.trainers[key])
+      if not rect then
+        -- a picture the FireRed table holds two people in, keyed by the half the
+        -- speaker's own graphic stands on -- the same rule as the branch below,
+        -- asked here because a borrowed id never reaches it
+        local side = speaker and speaker.gfx ~= nil and CROPS.pairSide
+          and CROPS.pairSide[tonumber(speaker.gfx)]
+        local pair = side and CROPS.pairs
+        rect = asRect(pair and pair[key] and pair[key][side])
+      end
+      if not rect then rect = asRect(CROPS.defaults and CROPS.defaults[kind]) end
+      return rect
+    end
+
     -- ------- Emerald: its own number space, its own table, and only its own
     --
     -- `key` on an Emerald boot is an EMERALD picture id, and the FireRed table
@@ -2815,7 +2958,20 @@ return function(mod)
     -- to reason away.  `key`/`kind` are NOT carried: they are only ever the
     -- crop-cache slot, and exposing them would invite a caller to depend on a
     -- cache key.
-    return { image = entry.image, quad = quad, w = size, h = size, pic = entry.pic }
+    --
+    -- `asset` is carried for the same reason `pic` is, and it is the OTHER half
+    -- of that reassurance: shipped asset art has no picture id at all, so on
+    -- such a box BOTH `pic` is nil and a face was drawn.  Reporting the file
+    -- stem makes that a stated fact instead of an apparent contradiction.  It is
+    -- read off entry.asset (route 3b), so a non-asset entry leaves it nil.
+    --
+    -- `share` is the answer to the same question for route 7: a borrowed face
+    -- DOES have a `pic`, but that pic is a FIRERED picture id, and on an Emerald
+    -- box a FireRed id is exactly the sort of thing a verifier would otherwise
+    -- misread as an Emerald picture.  Carrying `entry.share` ("firered") states
+    -- which cart the id belongs to, so `pic` is never the only fact on the cut.
+    return { image = entry.image, quad = quad, w = size, h = size,
+             pic = entry.pic, asset = entry.asset, share = entry.share }
   end
 
   -- A cache must never remember a MISS: a miss costs one failed lookup to
@@ -2836,9 +2992,31 @@ return function(mod)
     -- both class 84) do not collide.  It is a fallback now rather than the only
     -- key -- the speaker is handed on as well, so a rectangle filed against a
     -- PERSON outranks one filed against the artwork they wear.  See speakerRect.
+    --
+    -- `entry.asset` is the third case, and it is the one Emerald's shipped art
+    -- needs.  Route 3b in emerald/init.lua serves the cart's OWN field-effect
+    -- portrait as a PNG: it carries image/w/h and NO `pic`, because it is not a
+    -- trainer picture and must not be confused with one.  Without a branch here
+    -- it fell to `return nil` below, so a character whose art had just been
+    -- resolved never reached a quad -- the drawing was silently dropped one
+    -- layer above the resolver.  Professor Birch is the case: his new-game
+    -- speech art is the portrait the game itself shows, and it has no picture
+    -- number at all.
+    --
+    -- Such art is cut with its OWN measured window (rectFor's `asset` branch),
+    -- not with a cart crop table: it has no picture id to key one by, and the
+    -- file stem IS the key, so it can never collide with a picture or a species.
+    --
+    -- `entry.share` is the fourth case: route 7 in emerald/init.lua served a
+    -- FIRERED bust for an Emerald graphic the Emerald cart never drew.  It has a
+    -- `pic`, but that pic is a FIRERED picture id, so it must be cut by the
+    -- FIRERED crop table -- see rectFor's `origin` branch for why the boot's game
+    -- is not the right question here.
     local kind, key
     if speaker.species then
       kind, key = "pokemon", speciesKey(speaker.species) or speaker.species:lower()
+    elseif entry.asset then
+      kind, key = "asset", tostring(entry.asset)
     elseif entry.pic then
       kind, key = "trainers", tostring(entry.pic)
     else
@@ -2852,7 +3030,7 @@ return function(mod)
     -- Keying the slot on the speaker would serve the second of them the first's
     -- cut; keying it on the picture alone would do that for ANY override, since
     -- the picture is the same either way.  See rectFor.
-    local rect = rectFor(kind, key, speaker)
+    local rect = rectFor(kind, key, speaker, entry.share)
 
     local cacheId = tostring(entry.image) .. "|" .. kind .. "|" .. key
     if cacheKey ~= cacheId then
@@ -4480,6 +4658,13 @@ return function(mod)
       side = activeSide,
       hasImage = activePortrait.image ~= nil,
       custom = activePortrait.custom and true or false,
+      -- The shipped-art file stem when route 3b answered (Professor Birch), else
+      -- nil.  Present so a verifier can tell "face drawn from shipped art" from
+      -- "no face at all" -- both of which show pic = nil.
+      asset = activePortrait.asset,
+      -- "firered" when route 7 borrowed a FireRed bust, else nil -- so a verifier
+      -- can tell a borrowed `pic` (a FireRed id) from an Emerald one.
+      share = activePortrait.share,
     }
   end
   -- WHICH GATE said no, for a driver.  The three inputs Message.show reads

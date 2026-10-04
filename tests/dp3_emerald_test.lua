@@ -623,6 +623,24 @@ do
         if v ~= "left" and v ~= "right" then bad = bad + 1 end
       end
       eq(bad, 0, "cropE: every pairSide is left or right")
+      -- every graphic filed on a pair must route to a picture that HAS halves,
+      -- or the entry is dead and the graphic keeps a whole two-person bust in
+      -- one window.  gfx 8/10/12 are the girl graphics this release moves onto
+      -- the Twins picture (67).
+      eq(crops.pairSide[8], "left", "cropE: GIRL_1 stands on the Twins' left half")
+      eq(crops.pairSide[10], "left", "cropE: GIRL_2 stands on the Twins' left half")
+      eq(crops.pairSide[12], "left", "cropE: LITTLE_GIRL stands on the Twins' left half")
+      -- load the people table here (it is a separate block below), so the
+      -- pairing can be checked against the PICTURE each graphic now points at
+      local pf = io.open(MOD_ROOT .. "/emerald/gfx_art_people.lua", "rb")
+      local psrc = pf and pf:read("*a"); if pf then pf:close() end
+      local people_t = psrc and load(psrc, "@emerald/gfx_art_people.lua")
+      people_t = people_t and people_t()
+      for _, g in ipairs({ 8, 10, 12 }) do
+        local pic = type(people_t) == "table" and people_t[g]
+        eq(type(crops.pairs[tostring(pic)]), "table",
+           ("cropE: gfx %d's picture %s has pair halves"):format(g, tostring(pic)))
+      end
     end
   end
 end
@@ -652,15 +670,25 @@ do
     eq(people[18], 52, "people: POKEFAN_F -> POKéFAN 52, not the Sailor")
     eq(people[47], 77, "people: LASS -> LASS 77, not Psychic 34")
     eq(people[55], 0, "people: HIKER -> HIKER 0, not Ruin Maniac 16")
-    eq(people[26], 49, "people: WOMAN_4 -> a lone bust 49, not the Young Couple 78")
+    eq(people[26], 15, "people: WOMAN_4 -> AROMA LADY 15 (an adult woman), not the young girl 49 or the Young Couple 78")
     eq(people[65], 2, "people: MAN_4 -> a lone bust 2, not the Young Couple 78")
+    -- the reported girl and woman fixes: the three girls are the cart's OWN
+    -- little girl (the Twins picture, cut to a half), and every woman the one
+    -- ordinary adult-woman bust.  1.3.2 had the girls on picture 48, a BOY.
+    eq(people[8], 67, "people: GIRL_1 -> the Twins 67, not the boy in pic 48")
+    eq(people[10], 67, "people: GIRL_2 -> the Twins 67, not the boy in pic 48")
+    eq(people[12], 67, "people: LITTLE_GIRL -> the Twins 67, not the boy in pic 48")
+    eq(people[16], 15, "people: WOMAN_1 -> AROMA LADY 15, not COOLTRAINER 20")
+    eq(people[20], 15, "people: WOMAN_2 -> AROMA LADY 15, not COOLTRAINER 20")
+    eq(people[34], 15, "people: WOMAN_5 -> AROMA LADY 15 (was missing entirely)")
     eq(people[30], false, "people: OLD_WOMAN declines -- the cart drew no old-woman bust")
     eq(people[22], false, "people: EXPERT_F declines for the same reason")
     eq(people[21], 9, "people: EXPERT_M -> EXPERT 9 (the old man)")
     -- the reported fixes: the family, the lab, and the nurse who must NOT be drawn
-    eq(people[64], 24, "people: PROF_BIRCH -> a closest-build bust 24, not nil")
+    eq(people[64], 24, "people: PROF_BIRCH -> a closest-build fallback 24 (route 3b answers first)")
     eq(people[215], 15, "people: MOM -> AROMA LADY 15, not nil")
-    eq(people[46], 70, "people: SCIENTIST_1 -> the white-coat bust 70, not the Team Aqua grunt 1")
+    eq(people[46], false, "people: SCIENTIST_1 declines -- reported; the cart draws no scientist bust")
+    eq(people[115], 82, "people: SCIENTIST_2 (the woman) keeps the SALON MAIDEN 82")
     eq(people[58], false, "people: NURSE declines -- the cart drew no nurse bust")
   end
 end

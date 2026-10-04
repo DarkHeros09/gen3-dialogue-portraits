@@ -84,19 +84,26 @@
 --     numbers.  The engine's own `TrainerPic.front` already returns the cart's
 --     picture at its own size, and main.lua's draw path frames whatever it is
 --     handed, so the picture is used as the cart cut it.
---   * no FRLG fallback of ANY kind.  Every table this module reads is an
---     Emerald table keyed by Emerald facts, and the resolver refuses on a
---     non-Emerald boot by default.  A wrong face is worse than none, and an
---     FRLG face on an Emerald cart is the wrongest of all.
+--   * no Emerald CLASS-to-picture table of the FRLG kind, and no FRLG table used
+--     as if it were an Emerald one.  Every table this module reads for an
+--     Emerald answer is an Emerald table keyed by Emerald facts, and the
+--     resolver still refuses on a non-Emerald boot by default.  A wrong face is
+--     worse than none.  (1.3.3 adds a LAST-resort BORROW of a FireRed bust for
+--     the few graphics Emerald has no bust for at all -- see route 7 below and
+--     emerald/frlg_share.lua.  It is keyed by the Emerald GRAPHIC, never by an
+--     id, because the two carts' id spaces disagree; it runs last, so it cannot
+--     overrule a single Emerald answer; and it is off unless FireRed has been
+--     imported.  It is a borrowing of art, not a conflation of data.)
 --
 -- The gap that REMAINS, stated rather than pretended away: Emerald's overworld
 -- art is a SEPARATE set from its trainer busts, so a graphic worn by no trainer
 -- (and named by no class) has no measured answer and gets NO portrait -- which
 -- is this mod's rule everywhere the data does not decide.  Routes 4 and 5 cover
--- 69 of the 166 used person graphics; the rest are the anonymous kinds the cart
--- never drew a battle bust of.  Tests in tests/dp3_emerald_test.lua pin the
--- contract either way: the resolver declines with a non-empty, Emerald-naming
--- reason rather than ever raising or falling through to an FRLG table.
+-- 69 of the 166 used person graphics; of the rest, the 13 kinds FireRed also drew
+-- are borrowed by route 7, and the anonymous remainder still gets nothing.
+-- Tests in tests/dp3_emerald_test.lua pin the contract either way: the resolver
+-- declines with a non-empty, Emerald-naming reason rather than ever raising,
+-- and it never answers an Emerald speaker from an FRLG DATA table.
 
 local Emerald = {}
 
@@ -160,6 +167,32 @@ Emerald.GFX_ART_PATH    = "emerald/gfx_art.lua"
 Emerald.MAP_ART_PATH    = "emerald/map_art.lua"
 Emerald.GFX_NAMES_PATH  = "emerald/gfx_names.lua"
 Emerald.PEOPLE_PATH     = "emerald/gfx_art_people.lua"
+Emerald.FRLG_SHARE_PATH = "emerald/frlg_share.lua"
+
+--- The version whose extracted cache a shared borrowing is read from.
+--
+-- A literal, so the reader and the tests cannot disagree about which cart the
+-- borrow comes from.  It is the engine's own id for FireRed
+-- (GameVersion.VERSIONS.firered.id), the same string its cachePrefix is built
+-- from -- "firered/".
+Emerald.SHARE_VERSION = "firered"
+
+--- Where a FireRed front picture sits inside that cart's cache, relative to the
+--- version prefix.  This is the same path the engine's own TrainerPic.front
+--- builds (src/core/game3/trainer_pic.lua: cache_root() .. "/front/" .. pic),
+--- so a borrowed picture is read exactly as FireRed reads its own.
+--
+-- The cache root is NOT written out here.  modkit's no-ROM-content gate (MK301,
+-- 22-distribution-and-packaging.md) forbids a mod's own .lua from carrying the
+-- ROM-derived cache's path as a literal -- a mod must ship its own art or derive
+-- the path from the engine, never hard-code the player's generated tree.  So the
+-- reader below DERIVES it from the engine's own module
+-- (src.core.game3.cache_paths, the same CACHE_ROOT TrainerPic uses), and this
+-- constant holds only the subpath beneath it.  A derivation, not a shadow.
+--
+-- The picture files are 64x64 RGBA, 16384 bytes each, and the reader below
+-- checks the length rather than trusting the name.
+Emerald.SHARE_PIC_SUB = "/trainers/front/"
 
 --- EMERALD-NATIVE ART the mod ships, keyed by the graphics id it answers for.
 --
@@ -340,6 +373,13 @@ function Emerald.gfxNames() return loadTable(Emerald.GFX_NAMES_PATH) end
 --- (emerald/gfx_art_people.lua).  Hand-authored, so it OUTRANKS the generated
 --- majorities -- see the file's header for why and how its values were decided.
 function Emerald.peopleArt() return loadTable(Emerald.PEOPLE_PATH) end
+
+--- Emerald graphics id -> a FIRE RED front-picture id to borrow, or nil
+--- (emerald/frlg_share.lua).  Hand-authored, art-verified, and deliberately
+--- SHORT: it holds only the graphics the Emerald cart never drew a bust of and
+--- FireRed did.  See the file's header for how each value was decided, and for
+--- why sharing is keyed by graphic rather than by class or picture id.
+function Emerald.shareArt() return loadTable(Emerald.FRLG_SHARE_PATH) end
 
 -- The mod's OWN Emerald art for a graphics id, loaded as an engine image.
 --
@@ -580,6 +620,117 @@ function Emerald.artForPic(pic)
   return nil
 end
 
+-- ---- SHARED FireRed art: a borrowed bust, read from the other cart's cache
+--
+-- ---- why this is a read and not a mount
+--
+-- The engine mounts exactly ONE game version's cache at a time
+-- (src/import/CacheFs.lua: mountVersion / unmountVersion, whose own comment says
+-- "a process normally mounts exactly one version and then boots it").  During an
+-- Emerald boot the FireRed subtree is therefore NOT on the read path, and
+-- src/core/game3/trainer_pic.lua -- which reads through the ONE active cache --
+-- cannot see it.  That is by design: the alternative, mounting FireRed's tree
+-- under an Emerald boot, is the exact confusion unmountVersion warns about.
+--
+-- The engine's sanctioned way to read another version's cache without mounting
+-- it is CacheFs.readAt, whose own comment says it reads "an exact
+-- version-qualified path without consulting CacheFs.prefix", and which the dex
+-- already uses for precisely this (src/core/game3/dex.lua:40).  So a borrowed
+-- bust is read here as the FireRed version prefix, then the engine's own cache
+-- root (src.core.game3.cache_paths.CACHE_ROOT, the same one TrainerPic uses),
+-- then SHARE_PIC_SUB and the picture id -- e.g. "firered/" .. root ..
+-- "/trainers/front/<pic>.rgba".  The root is derived rather than written, so no
+-- generated-tree path appears as a literal in this file (modkit MK301).
+--
+-- which is a plain file read: nothing is mounted, no global is touched, and an
+-- Emerald boot that never touches this path is byte-for-byte what it was.
+--
+-- ---- the texture
+--
+-- The bytes are 64x64 RGBA (16384 of them).  The engine's own
+-- TrainerPic.front turns such bytes into an Image with love.image.newImageData
+-- + love.graphics.newImage and a nearest filter; that is a few lines and it is
+-- not reachable from a mod (the mod's sandbox has no love.image guarantee), so
+-- this builds the texture through the SAME injected `image` service route 3b
+-- uses -- except route 3b loads a file by relative path, and this needs an
+-- Image from bytes.  main.lua therefore binds a small factory behind the same
+-- seam, and this function calls it.  When no factory is bound -- a headless
+-- load, or an engine build without the seam -- the route answers nil, which is
+-- the safe answer: a bare box, never a crash and never a wrong face.
+--
+-- `pic` is validated before any read: a negative id is FireRed's no-picture
+-- sentinel, and the value is additionally checked against the file's real
+-- length so a truncated or absent cache entry misses rather than half-loads.
+local _shareFactory = nil
+
+--- Bind the byte->Image factory the shared route needs.  Called by main.lua
+--- alongside the other bind() fields; `nil` clears it, which restores the
+--- "no sharing" behaviour (the safe default on any boot that cannot build a
+--- texture).  Kept separate from bind()'s `image`, because that one loads a
+--- FILE by relative path and this one builds an Image from BYTES.
+function Emerald.bindShareImage(factory)
+  _shareFactory = (type(factory) == "function") and factory or nil
+  return Emerald
+end
+
+--- Read a FireRed front picture's bytes out of the FIRERED cache, or nil.
+--
+-- Returns the 16384 bytes for a 64x64 picture, or nil when FireRed has not been
+-- imported (no cache), the picture does not exist, or the entry is short.  The
+-- read goes through the engine's CacheFs.readAt, which is a pure, prefixed file
+-- read; a mod may not have CacheFs reachable (a sandbox), in which case this
+-- returns nil -- again, the safe answer.
+function Emerald.shareBytes(pic)
+  pic = tonumber(pic)
+  if not pic or pic < 0 then return nil end
+  local CacheFs = safeRequire("src.import.CacheFs")
+  if not (CacheFs and CacheFs.readAt) then return nil end
+  -- The cache ROOT is derived from the engine's own module, never written here:
+  -- MK301 forbids a mod's .lua carrying the ROM-derived path as a literal.  This
+  -- is the same CACHE_ROOT the engine's TrainerPic.front uses, so the borrowed
+  -- path is built exactly as FireRed builds its own -- and it follows the
+  -- engine's setRoot indirection rather than shadowing it.
+  local CachePaths = safeRequire("src.core.game3.cache_paths")
+  local root = CachePaths and CachePaths.CACHE_ROOT
+  if type(root) ~= "string" or root == "" then return nil end
+  local GameVersion = safeRequire("src.core.GameVersion")
+  local info = GameVersion and GameVersion.info and GameVersion.info(Emerald.SHARE_VERSION)
+  local prefix = (info and info.cachePrefix) or (Emerald.SHARE_VERSION .. "/")
+  local rel = prefix .. root .. Emerald.SHARE_PIC_SUB .. tostring(pic) .. ".rgba"
+  local ok, bytes = pcall(CacheFs.readAt, rel)
+  if not ok or type(bytes) ~= "string" then return nil end
+  if #bytes < 64 * 64 * 4 then return nil end
+  return bytes
+end
+
+--- The borrowed FireRed portrait for an EMERALD graphics id, in the shape
+--- main.lua's picArt returns (`{ image =, w =, h =, pic = }`), or nil.
+--
+-- `gfx` is looked up in emerald/frlg_share.lua; a graphic absent from that table
+-- is NOT borrowed (the Emerald decline stands).  The picture id it names is then
+-- read from the FireRed cache and turned into a texture.  Every failure --
+-- no table, no entry, no FireRed cache, a short read, no image factory -- is a
+-- plain nil, because a missing portrait is the mod's rule everywhere the data
+-- does not decide, and a borrowed wrong face would be worse than none.
+--
+-- The returned `pic` is the FIRERED picture id, and `share = "firered"` records
+-- where it came from, so a diagnostic (and the tests) can tell a borrowed face
+-- from an Emerald one at a glance.
+function Emerald.shareArtFor(gfx)
+  gfx = tonumber(gfx)
+  if not gfx then return nil end
+  local share = Emerald.shareArt()
+  if type(share) ~= "table" then return nil end
+  local pic = share[gfx]
+  if pic == nil or pic == false then return nil end
+  if type(_shareFactory) ~= "function" then return nil end
+  local bytes = Emerald.shareBytes(pic)
+  if not bytes then return nil end
+  local ok, image = pcall(_shareFactory, bytes, 64, 64)
+  if not ok or image == nil then return nil end
+  return { image = image, w = 64, h = 64, pic = tonumber(pic), share = Emerald.SHARE_VERSION }
+end
+
 --- Resolve a portrait for an Emerald speaker.
 --
 -- The Emerald counterpart of main.lua's FRLG `artFor`, running the same four
@@ -680,11 +831,26 @@ function Emerald.artFor(speaker, opts)
   --    real decline (a person the cart drew no bust of), so it stops the routes
   --    below rather than falling through to a majority that would put a wrong
   --    face on a shop clerk.
+  --
+  --    THE DECLINE IS WHERE THE BORROW BELONGS.  `false` says "this cart drew no
+  --    bust of this kind" -- which is EXACTLY the case a FireRed borrow exists
+  --    for (emerald/frlg_share.lua).  So a declined graphic is offered the
+  --    hand-authored, art-verified borrow BEFORE the statistical routes 5 and 6
+  --    are allowed to guess: a borrowed bust of the RIGHT KIND is strictly better
+  --    than a whole-ROM majority, which is a wrong face for a minority by
+  --    construction.  Only if there is no borrow does the decline stand and stop
+  --    5/6.  (Attempting the borrow after 5/6 instead would be dead code: `false`
+  --    returns, so the 13 graphics the share table names would never reach a
+  --    route placed below this one.)
   if gfx then
     local people = Emerald.peopleArt()
     if type(people) == "table" then
       local peoplePic = people[gfx]
-      if peoplePic == false then return nil end
+      if peoplePic == false then
+        local shared = Emerald.shareArtFor(gfx)
+        if shared then return shared end
+        return nil
+      end
       local peopleArt = viaPic(peoplePic)
       if peopleArt then return peopleArt end
     end
@@ -716,6 +882,25 @@ function Emerald.artFor(speaker, opts)
       local gfxArt = viaPic(gfxPic)
       if gfxArt then return gfxArt end
     end
+  end
+
+  -- 7. the SHARED FireRed bust -- the sweep for a graphic with no hand entry.
+  --
+  --    Route 4 already offers the borrow to any graphic it DECLINES with `false`
+  --    (that is where the 13 shared graphics are answered, because all 13 are
+  --    `false` in the hand table).  This route is the complement: a graphic the
+  --    hand table has NO ENTRY for at all -- neither an answer nor a decline --
+  --    that the two statistical routes above also could not answer.  It runs
+  --    LAST because every route above is a fact about THIS cart, and a fact
+  --    about the cart you are playing beats a borrowed face from another one; it
+  --    borrows only what emerald/frlg_share.lua names, so a graphic absent from
+  --    that table is simply not borrowed and the ordinary decline stands.
+  --
+  --    If FireRed was never imported, this misses (no cache to read) and the
+  --    answer is the bare box it was before sharing existed -- never an error.
+  if gfx then
+    local shared = Emerald.shareArtFor(gfx)
+    if shared then return shared end
   end
 
   -- Nothing answered.  Report the pack failure only if the failure was about a
