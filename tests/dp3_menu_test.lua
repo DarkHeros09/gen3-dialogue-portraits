@@ -110,6 +110,38 @@ if not love.graphics.newImage then
   end
 end
 
+-- ------- the cart-text seam
+--
+-- src/ui/game3/option_rows.lua builds its labels from the CART's own message
+-- table (RomText.at("sOptionMenuItemsNames", i)), and RomText.ir() ASSERTS when
+-- the running cart's script bundle has not been mounted.  That is correct at
+-- runtime -- the bundle is always up by the time OPTION opens -- but this suite
+-- drives Rows.build() with no ROM data at all, so without a seam it dies on the
+-- first row.  The engine's own menu tests stub rom_text for exactly this reason
+-- (see tests/game3_mods_menu_test.lua), so this does the same: an identity
+-- mapper that returns the key, which is all this suite needs to assert on row
+-- identity, order and grouping.  Nothing here changes what the ENGINE does; it
+-- only lets the headless harness reach the rows.
+--
+-- Installed BEFORE OptionRows is required below, so the require picks it up.
+do
+  local function key(n, i, j)
+    if i == nil then return n end
+    return j and (n .. "[" .. i .. "][" .. j .. "]") or (n .. "[" .. i .. "]")
+  end
+  local function plain(k) return k end
+  package.loaded["src.core.game3.rom_text"] = {
+    plain = plain, box = plain, ascii = plain,
+    has = function() return true end,
+    key = key,
+    at = function(n, i, j) return key(n, i, j) end,
+    count = function() return 0 end,
+    list = function() return {} end,
+    lazy = function(map) return setmetatable({},
+      { __index = function(_, k) return map[k] end }) end,
+  }
+end
+
 local hasSdk = isFile(ENGINE .. "/tests/modkit/sdk.lua")
 if not hasSdk then
   io.write("SKIP: ", ENGINE, "/tests/modkit/sdk.lua is absent, so the engine has no\n")

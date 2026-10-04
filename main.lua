@@ -149,6 +149,28 @@ local SLOT = INSET_ART + 2 * INSET_PAD  -- the slot the art is fitted into: 32
 local SLOT_TW = SLOT / 8                -- ...which is 4 columns
 local INSET_RESERVE_TW = SLOT_TW + math.max(ARROW_TW, INSET_GAP_TW)
 
+-- Where a SHIPPED asset is cut, in source px: x, y, size.
+--
+-- Route 3b's art (emerald/init.lua, ASSET_ART) is the cart's own field-effect
+-- portrait shipped as a PNG.  It is drawn with a rectangle of its own rather
+-- than through the crop tables -- see rectFor's `asset` branch for why.
+--
+-- The rectangle is NOT (0, 0): a shipped PNG is a FULL-BODY figure, and the top
+-- left 32x32 of one is a shoulder, not a face.  The shipped Birch art is 64x64
+-- with the figure at rows 1..63, and its head band (the top 45% of the figure)
+-- measured at rows 1..28, columns 9..48 -- centre x = 28.  A 32px window
+-- centred on that head is therefore x = 28 - 16 = 12, y = 1 to put the head at
+-- the top of the frame with the shoulders below it, which is the same framing
+-- the crop tables give a trainer bust.  Measured, not guessed:
+-- .probe/_em_birch_window_pick.png shows 12,1 against 0,0 / 16,1 / 12,7 / 12,14.
+--
+-- One rectangle serves every shipped asset, because there is exactly one today
+-- (PROF_BIRCH.png) and they are all cut from the same new-game-speech figure.
+-- A second, differently-framed asset would need its own entry here -- keyed by
+-- the file stem rectFor already has as `key` -- which is why rectFor passes the
+-- key through rather than this being a bare constant.
+local ASSET_CROP = { x = 12, y = 1, size = 32 }
+
 -- The panel FRAMED and MARGIN draw around a portrait.
 --
 -- The panel is a WINDOW, not a frame that hugs the art: the same one-tile border
@@ -1022,6 +1044,142 @@ return function(mod)
   local FrlgFont = require("src.ui.game3.frlg_font")
   local Display  = require("src.core.game3.display")
 
+  -- Pokemon Emerald support, in its own tree (emerald/init.lua).  Loaded
+  -- UNCONDITIONALLY -- it is pure functions plus one lazy table read -- but it
+  -- never changes an FRLG answer: every call into it is guarded by
+  -- Emerald.isEmeraldId(gameId()) first.  A failure to load it must not break
+  -- FRLG, so it degrades to a stub that reports "not Emerald".
+  --
+  -- Read through the mod's own reader (mod:read + load), NOT require():
+  -- a mod's files are not on package.path -- the same reason art/crops.lua and
+  -- art/trainer_ids.lua are read this way below.
+  local Emerald
+  do
+    local readMod = function(rel) return mod:read(rel) end
+    local ok, source = pcall(readMod, "emerald/init.lua")
+    if ok and type(source) == "string" then
+      local chunk = load(source, "@" .. tostring(mod.path) .. "/emerald/init.lua")
+      if chunk then
+        local ok2, value = pcall(chunk)
+        if ok2 and type(value) == "table" then Emerald = value end
+      end
+    end
+    if type(Emerald) ~= "table" then
+      Emerald = {
+        isEmeraldId = function() return false end,
+        detectGameId = function() return nil end,
+        canDrawPortraits = function() return false end,
+        artFor = function() return nil, "emerald module unavailable" end,
+      }
+    end
+    -- Hand the module the engine's require, this mod's reader and its logger,
+    -- so it never has to reach for an ambient global.  The reader is what lets
+    -- it load emerald/trainer_ids.lua the same way this file loads
+    -- art/trainer_ids.lua.  bind() is idempotent.
+    --
+    -- `image` is the mod's own asset loader, which is how the module serves the
+    -- cart's field-effect portraits it ships under emerald/art/ (Professor
+    -- Birch's own sNewGameBirch_Gfx art -- see Emerald.ASSET_ART).  It is the
+    -- same mod.assets:image call CustomArt/ uses, so there is one asset story on
+    -- both carts.  Wrapped, so a load with no graphics context simply leaves the
+    -- shipped-art route answering nil instead of raising.
+    if type(Emerald.bind) == "function" then
+      local function loadEmeraldArt(rel)
+        if type(mod.assets) ~= "table" or type(mod.assets.image) ~= "function" then
+          return nil
+        end
+        return mod.assets:image(rel)
+      end
+      pcall(Emerald.bind, {
+        require = require, log = mod.log, read = readMod, image = loadEmeraldArt,
+      })
+      -- The byte->Image factory the SHARED FireRed route needs
+      -- (emerald/init.lua shareArtFor, route 7).
+      --
+      -- Route 3b loads a PNG by relative path; a borrowed FireRed bust arrives
+      -- as raw 64x64 RGBA bytes read out of the other cart's cache, so it needs
+      -- a texture built FROM BYTES.  This is the same engine call the engine's
+      -- own TrainerPic.front makes (love.image.newImageData + newImage with a
+      -- nearest filter), made here because a mod's sandbox has no guarantee of
+      -- love.image and because the engine keeps that service behind its own
+      -- cache.  Returns nil, never raises, when there is no graphics context --
+      -- which is what makes the shared route answer nil in a headless load.
+      local function emeraldImageFromBytes(bytes, w, h)
+        if not (love and love.image and love.graphics) then return nil end
+        if type(bytes) ~= "string" or #bytes < w * h * 4 then return nil end
+        local ok, imageData = pcall(love.image.newImageData, w, h, "rgba8", bytes)
+        if not ok or not imageData then return nil end
+        local image = love.graphics.newImage(imageData)
+        if image and image.setFilter then image:setFilter("nearest", "nearest") end
+        return image
+      end
+      if type(Emerald.bindShareImage) == "function" then
+        pcall(Emerald.bindShareImage, emeraldImageFromBytes)
+      end
+      -- A seam for the headless suites, and ONLY for them.
+      --
+      -- The live loader above reads `mod.assets:image` through a closure, and
+      -- `mod` is not reachable from a test -- the engine's Loader keeps the api
+      -- handle private.  So a suite that wants to prove route 3b (the shipped
+      -- Birch art) cannot swap the loader the way it would swap a global.
+      --
+      -- This exports the module's own bind(), narrowed to the image loader, so a
+      -- test can install one without a graphics context.  It is the same bind()
+      -- emerald/init.lua already documents, not a new capability, and passing
+      -- nil restores the live loader -- so nothing in production reads it and a
+      -- real boot is unaffected either way.
+      mod.exports.bindEmeraldImage = function(loader)
+        if loader == nil then
+          pcall(Emerald.bind, { image = loadEmeraldArt })
+        elseif type(loader) == "function" then
+          -- accept both `f(rel)` and the colon form `f(self, rel)`
+          pcall(Emerald.bind, { image = function(rel) return loader(mod.assets, rel) end })
+        end
+        return true
+      end
+      -- The matching seam for the SHARED route's byte->Image factory, for the
+      -- same reason: a suite that wants to prove route 7 (a borrowed FireRed
+      -- bust) must be able to install a factory that returns a stub image
+      -- without a graphics context.  nil restores the live factory, so nothing
+      -- in production reads this.
+      mod.exports.bindEmeraldShareImage = function(factory)
+        if type(Emerald.bindShareImage) ~= "function" then return false end
+        if factory == nil then
+          pcall(Emerald.bindShareImage, emeraldImageFromBytes)
+        elseif type(factory) == "function" then
+          pcall(Emerald.bindShareImage, factory)
+        end
+        return true
+      end
+    end
+  end
+
+  -- The running game id, asked once and cached: GameVersion cannot change
+  -- mid-process (it is set at boot from the launcher's column choice), and the
+  -- resolver asks this per box.  Falls back to the game3 service owner, which
+  -- is what gameOf() already reads.
+  local _gameIdCache
+  local function gameId()
+    if _gameIdCache ~= nil then return _gameIdCache end
+    _gameIdCache = Emerald.detectGameId() or false
+    return _gameIdCache
+  end
+
+  -- One diagnostic line per boot for the Emerald path, so a player on an
+  -- Emerald cart learns ONCE why the box is bare rather than every box.
+  local _emeraldWarned = false
+  Emerald.warnedOnce = function()
+    if _emeraldWarned then return false end
+    _emeraldWarned = true
+    return true
+  end
+
+  -- Is this boot an Emerald one?  Exported so the suite can prove the gate
+  -- opens on Emerald and stays shut on FireRed/LeafGreen.
+  local function isEmeraldBoot()
+    return Emerald.isEmeraldId(gameId())
+  end
+
   -- Optional: the FRLG graphics-id table.  It is what says whether a host
   -- SPRITE_* was the engine's own mapping or its fallback (see GFX_ART above);
   -- without it, the sprite route behaves as it always did rather than
@@ -1072,6 +1230,38 @@ return function(mod)
       if chunk then
         local ok2, value = pcall(chunk)
         if ok2 and type(value) == "table" then CROPS = value end
+      end
+    end
+  end
+
+  -- ------- the EMERALD crop table
+  --
+  -- A second crop table, not a patch of the first.  art/crops.lua is keyed by
+  -- the FireRed trainer FRONT-PIC id and every rectangle in it was measured off
+  -- FireRed art.  An Emerald cart hands back EMERALD picture ids into an
+  -- Emerald art set -- full-body standing figures and two-person busts -- so
+  -- FireRed's default window {16, 3, 32}, tuned for a single FireRed bust,
+  -- framed the chest or split two heads in half.  That is the reported "some
+  -- portraits are badly framed".
+  --
+  -- The ids collide, which is the dangerous part: Emerald picture 35 also
+  -- exists in the FireRed table as picture 35, so an Emerald box was silently
+  -- cut with FireRed's picture-35 rectangle.  A separate table makes the two
+  -- number spaces impossible to confuse -- rectFor consults exactly one of
+  -- them, chosen by which cart is running (see below).
+  --
+  -- Read through the mod's own reader for the same reason the first table is:
+  -- a mod's files are not on package.path.  A failure to load it is NOT fatal:
+  -- CROPS_E stays nil and rectFor falls back to the FireRed table, which is
+  -- what the mod did before this file existed.
+  local CROPS_E = nil
+  do
+    local ok, source = pcall(function() return mod:read("emerald/crops.lua") end)
+    if ok and type(source) == "string" then
+      local chunk = load(source, "@" .. tostring(mod.path) .. "/emerald/crops.lua")
+      if chunk then
+        local ok2, value = pcall(chunk)
+        if ok2 and type(value) == "table" then CROPS_E = value end
       end
     end
   end
@@ -1862,6 +2052,38 @@ return function(mod)
   local function artFor(speaker)
     if type(speaker) ~= "table" then return nil end
 
+    -- ------- Pokemon Emerald: an isolated path, and not an FRLG one
+    --
+    -- Every table below this line is FireRed/LeafGreen data -- FRLG script
+    -- keys, the FRLG graphics-id space, the FRLG map spellings, the FRLG
+    -- trainer class vs picture spaces.  On an Emerald cart those name the
+    -- WRONG person or nobody, and a wrong face is worse than none (the mod's
+    -- own rule in the header).  So an Emerald boot is answered HERE, from the
+    -- Emerald module, and never falls through to an FRLG table.
+    --
+    -- On FireRed and LeafGreen this branch is not taken: Emerald.gameId() is
+    -- not an Emerald id, and not one byte of FRLG behaviour changes.  See
+    -- emerald/init.lua for what the Emerald path does today, and why.
+    do
+      local id = gameId()
+      if Emerald.isEmeraldId(id) then
+        -- force = true: the game has ALREADY been established right here, so
+        -- the resolver does not need to ask again.  It is belt and braces --
+        -- artFor refuses on a non-Emerald boot by default -- but passing it
+        -- keeps the one authoritative game check at this call site and makes
+        -- the double-check explicit rather than incidental.
+        local art, why = Emerald.artFor(speaker, { force = true })
+        if art then return art end
+        if why and Emerald.warnedOnce then
+          -- One line per boot, not one per box: an Emerald player should learn
+          -- once why the box is bare, not be spammed every conversation.
+          Emerald.warnedOnce()
+          mod.log:info("dialogue portraits: %s", why)
+        end
+        return nil
+      end
+    end
+
     -- A mapped value is a picture id, a sprite id that means a person, or a
     -- class name.  A NUMBER is already the first of those -- it is how the
     -- rival is pinned, because his class name is ambiguous (see RIVAL_ART) --
@@ -2254,6 +2476,11 @@ return function(mod)
     setobjectxy = true, setobjectxyperm = true,
   }
 
+  -- The Champion's Room's post-battle ON_FRAME scene (see the opening-box rule
+  -- inside sceneSpeaker).  Named once, here, so the one place that reads it and
+  -- the one place that exempts it cannot drift.
+  local CHAMPIONS_ROOM_SCENE = "g3:08162b76"
+
   local function sceneSpeaker()
     -- The same question the press record asks, so it is asked once (see
     -- scriptRunning).  A scene only exists while its script is running.
@@ -2367,9 +2594,124 @@ return function(mod)
         if eo then return eo end
       end
     end
+    -- ------- the Champion's Room: the opening box, before anybody arrives
+    --
+    -- One scene needs a rule of its own, and the rule is narrow on purpose: it
+    -- fires for ONE script, on its text boxes that sit BEFORE the scene's first
+    -- `addobject`, and it answers the object already standing there.
+    --
+    -- FireRed/LeafGreen's post-Champion cutscene (Champion's Room, the ON_FRAME
+    -- script g3:08162b76) is a sequence with a NEWCOMER in the middle of it.
+    -- Measured off the cart's own rows: the player walks in (row 4
+    -- `applymovement 255`, the player, which is never a portrait), the RIVAL's
+    -- defeat line opens at row 26, OAK enters at row 28 (`addobject localId=2`,
+    -- graphic 71), and OAK then has every box after that.  The rival is on
+    -- stage from the moment the map loads; Oak is placed by the scene itself.
+    --
+    -- Two routes get the opening box wrong in opposite directions:
+    --   * The backward scan finds only the player's `applymovement 255`, and
+    --     0xFF is rejected (the player is not a portrait) -- so the scan walks
+    --     out of the frame empty.
+    --   * The last-resort sweep below then reads the entry script from its END
+    --     and finds the LAST object the scene moves -- row 54 `applymovement 2`,
+    --     which is OAK.  So the rival's "Why did I lose?" wore Oak's face.
+    --     The player's report: the rival's post-battle dialogue shows no
+    --     portrait / the wrong one.
+    --
+    -- The cart's own signal is unambiguous here, and it is the same signal the
+    -- rest of this function uses -- who is on stage -- read as a SET rather
+    -- than as recency:
+    --   * a localId that some ACTOR_OP row touches is a participant;
+    --   * a participant the scene also `addobject`s is a NEWCOMER -- it is not
+    --     there for the opening box, whatever the scene does with it later;
+    --   * the participant that is NOT added is the one who was already there,
+    --     and for a box that opens before the newcomer arrives, that is the
+    --     speaker.
+    -- Exactly one such object must exist, or the rule answers nothing (the
+    -- same "ambiguity answers nobody" discipline as the rest of the file).  Oak
+    -- never gets this face: his boxes are all AFTER row 28, so the row test
+    -- fails for every one of them and the rule is silent.  See
+    -- dp3_frlg_champ_rival_live / dp3_diag_sweep.
+    --
+    -- This block also reports whether the scene HAS a newcomer at all
+    -- (scenePlacesSomeone).  The last-resort sweep below is skipped only for a
+    -- scene with that structure: an end-first read is wrong precisely BECAUSE
+    -- the scene moves the arrival after its boxes, so the exemption is tied to
+    -- the fact that makes it necessary rather than to the script's name alone.
+    local scenePlacesSomeone = false
+    if vm._scriptKey == CHAMPIONS_ROOM_SCENE and ctx.pc
+        and ctx.pc.listKey and ctx.pc.index then
+      local rows = vm.scripts and vm.scripts[vm._scriptKey]
+      if type(rows) == "table" then
+        -- Which row of the ENTRY script this box belongs to.  The box is often
+        -- opened by a `callstd` stub, so the entry row is the call site on the
+        -- stack; when the box is an inline `message`, ctx.pc is the entry row.
+        local boxRow = tonumber(ctx.pc.index)
+        if ctx.pc.listKey ~= vm._scriptKey then
+          boxRow = nil
+          local stack = ctx.stack or {}
+          for i = #stack, 1, -1 do
+            local frame = stack[i]
+            if type(frame) == "table" and frame.listKey == vm._scriptKey then
+              boxRow = tonumber(frame.index); break
+            end
+          end
+        end
+        -- Does this scene place a newcomer at all?  Read over the WHOLE script
+        -- (an `addobject` anywhere means the scene introduces somebody), so it
+        -- answers even when the box's own row could not be established.
+        local newcomerAt
+        for i = 1, #rows do
+          local row = rows[i]
+          if type(row) == "table" and row.op == "addobject" then
+            local lid = tonumber(row.localId or row[1])
+            if lid and lid ~= 0xFF then newcomerAt = newcomerAt or i end
+          end
+        end
+        if newcomerAt then
+          scenePlacesSomeone = true
+          if boxRow and boxRow < newcomerAt then
+            -- Everyone the scene moves or turns.
+            local present = {}
+            for i = 1, #rows do
+              local row = rows[i]
+              if type(row) == "table" and ACTOR_OPS[row.op] then
+                local lid = tonumber(row.localId or row[1])
+                if lid and lid ~= 0xFF then present[lid] = true end
+              end
+            end
+            -- Of those, the one(s) the scene never adds -- already on stage.
+            local onStage, onStageCount = nil, 0
+            for lid in pairs(present) do
+              local isNewcomer = false
+              for i = 1, #rows do
+                local row = rows[i]
+                if type(row) == "table" and row.op == "addobject"
+                    and tonumber(row.localId or row[1]) == lid then
+                  isNewcomer = true; break
+                end
+              end
+              if not isNewcomer then
+                local okF, eo = pcall(Objects.find, lid)
+                if okF and type(eo) == "table" then
+                  onStage, onStageCount = eo, onStageCount + 1
+                end
+              end
+            end
+            if onStageCount == 1 then return onStage end
+          end
+        end
+      end
+    end
+
     -- Last resort: the entry point, in case the scene is reached by a `goto`
-    -- that left no frame behind.
-    if type(vm._scriptKey) == "string" then
+    -- that left no frame behind.  A scene that PLACES a newcomer is exempt: its
+    -- end-first read answers the arrival (the last object it moves), which is
+    -- exactly the wrong person for the boxes that open before he appears -- the
+    -- Champion's Room defect above.  Everywhere else -- including this same
+    -- script read on a build where it places nobody -- the sweep still answers,
+    -- because then nothing in it is a later arrival to mistake for the speaker.
+    if type(vm._scriptKey) == "string" and not scenePlacesSomeone then
       local eo = nearest(vm._scriptKey)
       if eo then return eo end
     end
@@ -2514,6 +2856,121 @@ return function(mod)
     return false
   end
 
+  -- ------- the engine's own "system" boxes: the game talking, not a person
+  --
+  -- A handful of boxes the FIELD ENGINE prints on its own are not anybody's
+  -- dialogue, and none of them may wear a portrait.  Three are reported:
+  --
+  --   Text_RepelWoreOff   "REPEL's effect wore off…"   (repel expired)
+  --   gText_PkmnFainted3  "<name> fainted…"            (poison faint on the map)
+  --   DayCare_Text_Huh    "Huh?"                       (an egg is hatching)
+  --
+  -- All three are printed from src/core/game3/step_events.lua through
+  -- Hud.openMessage -> Message.show, with NO `opts` of their own beyond a `done`
+  -- callback -- so the box arrives with no press behind it, and speakerFor falls
+  -- through to the RECORD: the trainer the player last fought.  That is the
+  -- report -- "after fighting a trainer then using Repel, when Repel expires its
+  -- box shows the previously fought trainer's portrait" -- and it is the same
+  -- defect as the HM field-move one (see fieldMoveText): a box with no speaker
+  -- wearing the last speaker's face.
+  --
+  -- The rule is built from the ENGINE'S OWN keys, exactly as fieldMoveText is,
+  -- and not from a hand-copied list of strings:
+  --   * the engine's profile names two of them per game
+  --     (profiles/emerald/field.lua: `eggHatchText`, `poisonFaintText`), and the
+  --     call sites fall back to the FRLG literals when the profile is silent --
+  --     so those two literals are read from step_events' own choice, and the
+  --     profile's key is preferred when it exists;
+  --   * `Text_RepelWoreOff` has no profile field (it is the same key in both
+  --     carts) and is named once here.
+  -- RomText answers each key with the cart's OWN text, so an FRLG boot never
+  -- matches an Emerald string or the reverse.
+  --
+  -- Two shapes of text, as everywhere in this file: the STATIC boxes
+  -- (Repel, "Huh?") are matched by equality; the mon-name one
+  -- ("<name> fainted…") has the player's nickname in front of it, so it is
+  -- resolved ONCE with a printable sentinel in the name slot and the sentinel is
+  -- turned into a Lua pattern's `.*` -- the pattern comes from the cart's text,
+  -- not from a guess, and it survives a nickname containing anything at all.
+  local SYSBOX_SENTINEL = "\1SYSNAME\1"
+  local systemBoxTests             -- built on first use; nil until then
+
+  local function buildSystemBoxTests()
+    local tests = {}
+    local okR, RomText = pcall(require, "src.core.game3.rom_text")
+    if not okR or type(RomText) ~= "table" or type(RomText.plain) ~= "function" then
+      return tests
+    end
+
+    -- The mon-name key, with a sentinel standing in the name slot.
+    local function addPattern(key)
+      local okp, sample = pcall(function() return RomText.plain(key) end)
+      if okp and type(sample) == "string" and sample ~= "" then
+        -- gText_PkmnFainted3 is "<name> fainted…" -- the name is a strvar, so
+        -- plain() has ALREADY dropped it and left the tail.  The cart's own tail
+        -- is what is matched, as a suffix, so the nickname never has to be known.
+        tests[#tests + 1] = { suffix = sample }
+      end
+      -- And a sentinel-filled form when the key resolves through a strvar-aware
+      -- call, so the whole sentence is pinned when it can be.
+      local oks, full = pcall(function() return RomText.plain(key, { stringVars = { SYSBOX_SENTINEL } }) end)
+      if oks and type(full) == "string" and full ~= ""
+          and full:find(SYSBOX_SENTINEL, 1, true) then
+        local function esc(s)
+          return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+        end
+        local pattern = esc(full):gsub(esc(SYSBOX_SENTINEL), ".*")
+        tests[#tests + 1] = { pattern = "^" .. pattern .. "$" }
+      end
+    end
+
+    -- The engine's profile, when it names these boxes for this game.
+    local okP, profile = pcall(function()
+      return require("src.core.game3.profile").forSession()
+    end)
+    local field = (okP and type(profile) == "table") and profile.field or nil
+    if type(field) == "table" then
+      if type(field.poisonFaintText) == "string" then addPattern(field.poisonFaintText) end
+      if type(field.eggHatchText) == "string" then
+        local oke, v = pcall(function() return RomText.plain(field.eggHatchText) end)
+        if oke and type(v) == "string" and v ~= "" then tests[#tests + 1] = { exact = v } end
+      end
+    end
+
+    -- The FRLG literals, which are what each call site uses when the profile is
+    -- silent (step_events.lua:277/308/396).  Asking them all unconditionally is
+    -- safe: a key the cart does not have simply resolves to nothing and is
+    -- skipped, and one it does have is the same string the profile would give.
+    for _, k in ipairs({ "Text_RepelWoreOff", "DayCare_Text_Huh" }) do
+      local okv, v = pcall(function() return RomText.plain(k) end)
+      if okv and type(v) == "string" and v ~= "" then tests[#tests + 1] = { exact = v } end
+    end
+    addPattern("gText_PkmnFainted3")
+    return tests
+  end
+
+  -- Is this box one of the engine's own system boxes?  Asked of the cart's own
+  -- strings, and of both shapes Message.show can hand over -- a plain string, or
+  -- the text IR token list RomText.box builds.
+  local function isSystemBox(text)
+    local s = plainText(text)
+    if type(s) ~= "string" or s == "" then return false end
+    if systemBoxTests == nil or #systemBoxTests == 0 then
+      systemBoxTests = buildSystemBoxTests()
+    end
+    for i = 1, #systemBoxTests do
+      local t = systemBoxTests[i]
+      if t.exact and s == t.exact then return true end
+      if t.pattern and s:match(t.pattern) then return true end
+      -- A tail match, for the mon-name box whose name plain() has already
+      -- dropped: the cart's own tail is enough, and it cannot false-positive on
+      -- an ordinary line that merely contains it (the tail carries the ellipsis
+      -- and the shape is a whole box).
+      if t.suffix and #t.suffix > 0 and s:sub(-#t.suffix) == t.suffix then return true end
+    end
+    return false
+  end
+
   -- ------- the resolver
   local function speakerFor(text)
     -- A field-move box names nobody, and it OUTRANKS every other route below --
@@ -2521,6 +2978,12 @@ return function(mod)
     -- box that has no speaker AT ALL rather than a speaker to correct.  See
     -- fieldMoveText for why this is a class and not a one-off.
     if fieldMoveText(text) then return nil end
+
+    -- The engine's own system boxes too -- Repel wore off, a poison faint, the
+    -- egg hatch -- and for the same reason and at the same rank: they are the
+    -- game talking, not a person, so they must beat the press record rather than
+    -- fall through to it.  See isSystemBox.
+    if isSystemBox(text) then return nil end
 
     -- ONE-OFF, and deliberately not a rule.  "A MACHOP is stomping the land
     -- flat." is the player's own observation about the Machop standing in front
@@ -2736,7 +3199,102 @@ return function(mod)
     return nil
   end
 
-  local function rectFor(kind, key, speaker)
+  local function rectFor(kind, key, speaker, origin)
+    -- ------- shipped ASSET art: its own measured window, not a cart table
+    --
+    -- `kind == "asset"` is route 3b's own art: the cart's field-effect portrait,
+    -- shipped as a PNG.  It carries no picture id, so it cannot be keyed into
+    -- either crop table -- the tables below are keyed by trainer-picture id, a
+    -- lookup would miss, and the miss would fall to a default window that frames
+    -- the chest of a full-body figure.  So an asset is cut with its own measured
+    -- rectangle instead.
+    --
+    -- The rectangle is NOT the art's full extent.  A shipped PNG is a whole
+    -- standing figure, and taking its top-left corner yields a shoulder rather
+    -- than a face -- measured, and exactly the defect the first draft of this
+    -- fix had.  ASSET_CROP is the measured head-band window for the shipped
+    -- figure (see its declaration), which frames it the way the cart tables
+    -- frame a trainer bust.
+    --
+    -- This runs BEFORE the cart tables and before `speakers` because it is a
+    -- property of the source, not a preference: an asset has no picture id for
+    -- either table to key on, and a per-speaker override on an FRLG table must
+    -- never reach an Emerald asset.
+    --
+    -- `key` is the shipped file stem (set in portraitFor), so a second,
+    -- differently-framed asset can be filed against its own name here later
+    -- without moving this branch.
+    if kind == "asset" then
+      return { x = ASSET_CROP.x, y = ASSET_CROP.y, size = ASSET_CROP.size }
+    end
+
+    -- ------- a BORROWED FireRed bust: cut by the FIRERED table
+    --
+    -- `origin == "firered"` marks route 7's shared art (emerald/init.lua
+    -- shareArtFor).  Such an entry carries a FIRERED picture id, and its image
+    -- is FireRed's own 64x64 bust -- so its window must come from the FIRERED
+    -- crop table below, whose keys ARE FireRed picture ids and whose rectangles
+    -- were measured off FireRed art.
+    --
+    -- Without this branch a borrowed bust would be cut by whatever table the
+    -- boot's GAME selects -- and on an Emerald boot that is CROPS_E, keyed by
+    -- EMERALD picture ids.  The two number spaces overlap, so a borrowed FireRed
+    -- bust would be framed by the rectangle of an unrelated Emerald picture: the
+    -- same "two number spaces, one table" defect the Emerald branch below was
+    -- written to end, arriving from the other side.  The origin is therefore
+    -- checked FIRST, before the game decides, because it is a fact about the
+    -- ARTWORK rather than about the boot.
+    --
+    -- Falling through to the FireRed table is safe for a borrowed id: the table
+    -- is keyed by FireRed picture, and its own default is the FireRed bust
+    -- default, which is the right shape for a FireRed bust that has no entry.
+    if origin == "firered" then
+      local rect = asRect(CROPS.trainers and CROPS.trainers[key])
+      if not rect then
+        -- a picture the FireRed table holds two people in, keyed by the half the
+        -- speaker's own graphic stands on -- the same rule as the branch below,
+        -- asked here because a borrowed id never reaches it
+        local side = speaker and speaker.gfx ~= nil and CROPS.pairSide
+          and CROPS.pairSide[tonumber(speaker.gfx)]
+        local pair = side and CROPS.pairs
+        rect = asRect(pair and pair[key] and pair[key][side])
+      end
+      if not rect then rect = asRect(CROPS.defaults and CROPS.defaults[kind]) end
+      return rect
+    end
+
+    -- ------- Emerald: its own number space, its own table, and only its own
+    --
+    -- `key` on an Emerald boot is an EMERALD picture id, and the FireRed table
+    -- below is keyed by FIREreD picture id -- two different numbers for two
+    -- different art sets, with ids that overlap.  Handing an Emerald picture to
+    -- the FireRed table is how the framing bug happened: Emerald picture 35 hit
+    -- FireRed's picture-35 rectangle, and everything the FireRed table had not
+    -- filed fell to FireRed's default {16, 3, 32}, which for a full-body
+    -- Emerald figure frames the chest.
+    --
+    -- So on an Emerald boot the Emerald table is the ONLY table consulted --
+    -- the same shape as the rule, one table per cart, rather than a merge that
+    -- would have to keep the two id spaces straight at every key.  The order
+    -- inside it mirrors the FireRed table's for the same reasons: the pair half
+    -- first (one rectangle cannot be right for both halves of a two-person
+    -- bust), then the picture's own measured window, then the Emerald default.
+    --
+    -- This branch is taken ONLY on an Emerald boot (CROPS_E is also non-nil
+    -- only if emerald/crops.lua loaded).  On FireRed and LeafGreen nothing
+    -- changes: CROPS_E is present but isEmeraldBoot() is false, so the FireRed
+    -- path below runs exactly as it did, byte for byte.
+    if CROPS_E and isEmeraldBoot() then
+      local side = speaker and speaker.gfx ~= nil and CROPS_E.pairSide
+        and CROPS_E.pairSide[tonumber(speaker.gfx)]
+      local pr = side and CROPS_E.pairs
+        and asRect(CROPS_E.pairs[key] and CROPS_E.pairs[key][side])
+      if pr then return pr end
+      local tr = type(CROPS_E.trainers) == "table" and asRect(CROPS_E.trainers[key])
+      if tr then return tr end
+      return asRect(CROPS_E.defaults and CROPS_E.defaults[kind])
+    end
+
     -- A picture the cart drew TWO people into.  `key` is the picture, the
     -- speaker's own graphics id says which half is standing there, and that
     -- half is the whole answer -- so it is asked FIRST, before the picture
@@ -2778,7 +3336,27 @@ return function(mod)
       ok, quad = pcall(g.newQuad, x, y, size, size, sw, sh)
     end
     if not ok or not quad then return nil end
-    return { image = entry.image, quad = quad, w = size, h = size }
+    -- `pic` rides along so a caller can say WHICH picture was cut, not just that
+    -- one was.  The draw path ignores it -- it needs only image/quad/w/h -- but
+    -- the mod's own `exports.activePortrait` reads it, and a bare `pic = nil` on
+    -- a box that clearly drew a face is a false alarm a verifier should not have
+    -- to reason away.  `key`/`kind` are NOT carried: they are only ever the
+    -- crop-cache slot, and exposing them would invite a caller to depend on a
+    -- cache key.
+    --
+    -- `asset` is carried for the same reason `pic` is, and it is the OTHER half
+    -- of that reassurance: shipped asset art has no picture id at all, so on
+    -- such a box BOTH `pic` is nil and a face was drawn.  Reporting the file
+    -- stem makes that a stated fact instead of an apparent contradiction.  It is
+    -- read off entry.asset (route 3b), so a non-asset entry leaves it nil.
+    --
+    -- `share` is the answer to the same question for route 7: a borrowed face
+    -- DOES have a `pic`, but that pic is a FIRERED picture id, and on an Emerald
+    -- box a FireRed id is exactly the sort of thing a verifier would otherwise
+    -- misread as an Emerald picture.  Carrying `entry.share` ("firered") states
+    -- which cart the id belongs to, so `pic` is never the only fact on the cut.
+    return { image = entry.image, quad = quad, w = size, h = size,
+             pic = entry.pic, asset = entry.asset, share = entry.share }
   end
 
   -- A cache must never remember a MISS: a miss costs one failed lookup to
@@ -2799,9 +3377,31 @@ return function(mod)
     -- both class 84) do not collide.  It is a fallback now rather than the only
     -- key -- the speaker is handed on as well, so a rectangle filed against a
     -- PERSON outranks one filed against the artwork they wear.  See speakerRect.
+    --
+    -- `entry.asset` is the third case, and it is the one Emerald's shipped art
+    -- needs.  Route 3b in emerald/init.lua serves the cart's OWN field-effect
+    -- portrait as a PNG: it carries image/w/h and NO `pic`, because it is not a
+    -- trainer picture and must not be confused with one.  Without a branch here
+    -- it fell to `return nil` below, so a character whose art had just been
+    -- resolved never reached a quad -- the drawing was silently dropped one
+    -- layer above the resolver.  Professor Birch is the case: his new-game
+    -- speech art is the portrait the game itself shows, and it has no picture
+    -- number at all.
+    --
+    -- Such art is cut with its OWN measured window (rectFor's `asset` branch),
+    -- not with a cart crop table: it has no picture id to key one by, and the
+    -- file stem IS the key, so it can never collide with a picture or a species.
+    --
+    -- `entry.share` is the fourth case: route 7 in emerald/init.lua served a
+    -- FIRERED bust for an Emerald graphic the Emerald cart never drew.  It has a
+    -- `pic`, but that pic is a FIRERED picture id, so it must be cut by the
+    -- FIRERED crop table -- see rectFor's `origin` branch for why the boot's game
+    -- is not the right question here.
     local kind, key
     if speaker.species then
       kind, key = "pokemon", speciesKey(speaker.species) or speaker.species:lower()
+    elseif entry.asset then
+      kind, key = "asset", tostring(entry.asset)
     elseif entry.pic then
       kind, key = "trainers", tostring(entry.pic)
     else
@@ -2815,7 +3415,7 @@ return function(mod)
     -- Keying the slot on the speaker would serve the second of them the first's
     -- cut; keying it on the picture alone would do that for ANY override, since
     -- the picture is the same either way.  See rectFor.
-    local rect = rectFor(kind, key, speaker)
+    local rect = rectFor(kind, key, speaker, entry.share)
 
     local cacheId = tostring(entry.image) .. "|" .. kind .. "|" .. key
     if cacheKey ~= cacheId then
@@ -3511,7 +4111,38 @@ return function(mod)
   -- npcColor at all is NOT declined: every field box in the game carries one, so
   -- an absent value means a caller outside the field path (a suite, a menu)
   -- rather than a black/grey box.
+  --
+  -- ------- but EMERALD does not have this colour at all
+  --
+  -- The whole rule above rests on the colour being a real, per-speaker choice,
+  -- and on EMERALD it is not -- it is a CONSTANT.  The Emerald profile turns the
+  -- engine's colour lookup off outright:
+  --
+  --   src/core/game3/profiles/emerald/font.lua:22   npcTextColors = false
+  --
+  -- and frlg_font.lua:176 then short-circuits every query:
+  --
+  --   if spec and spec.npcTextColors == false then
+  --     return FrlgFont.NPC_TEXT_COLOR.NEUTRAL        -- always 3
+  --   end
+  --
+  -- so `opts.npcColor` is 3 for EVERY field box on an Emerald cart -- the
+  -- ordinary town NPC, the sign, the " received a <ITEM>" box, all of them.
+  -- Measured, not read: .probe/drivers/dp3_emerald_npccolor.lua presses eight
+  -- real NPCs across Petalburg / Oldale / Littleroot and every one arrives with
+  -- npcColor == 3 ("8 boxes captured, npcColor 3 x 8").
+  --
+  -- That is the reported bug in full: on Emerald the FRLG rule reads every box as
+  -- narration and draws no face, which is exactly "the mod loads, but not
+  -- working -- no portraits have been showing during dialogue boxes".  The colour
+  -- cannot be consulted where it carries no information, so on an Emerald boot
+  -- this gate is opened and the DECISION is left to the two gates that still say
+  -- something true there: the frame gate above (still field dialogue only), and
+  -- speakerFor -- which on Emerald answers nil for a sign, an item box or any
+  -- script that named no object, and a person for a person.  Nothing is loosened
+  -- that the colour was needed to hold shut.
   local function coloursAllowPortrait(opts, text)
+    if isEmeraldBoot() then return true end
     if type(opts) ~= "table" then return true end
     local c = opts.npcColor
     if c == nil then return true end
@@ -4348,6 +4979,103 @@ return function(mod)
   mod.exports.readChoice = readChoice
   mod.exports.writeChoice = writeChoice
   mod.exports.cycleChoice = cycleChoice
+
+  -- ------- Pokemon Emerald (isolated path)
+  --
+  -- Exported so the suite can prove three things without a live Emerald boot:
+  --   * the Emerald module loaded and bound;
+  --   * isEmeraldBoot() is true for the Emerald id and FALSE for firered /
+  --     leafgreen / anything else -- the regression guard for every other game;
+  --   * artFor() declines with a diagnostic on an Emerald boot instead of
+  --     returning an FRLG table's wrong face.
+  mod.exports.Emerald = Emerald
+  mod.exports.isEmeraldBoot = isEmeraldBoot
+  mod.exports.emeraldGameId = gameId
+  -- The Emerald resolver's own surface, exported so the suite can drive it
+  -- directly and prove it answers from EMERALD data on an Emerald boot and
+  -- declines with a reason elsewhere -- without needing a live Emerald session.
+  --
+  -- `force = true` is threaded through here too, because a SUITE that drives
+  -- this export has its own way of establishing the game (a stubbed
+  -- GameVersion); without it the export would refuse on every boot whose id is
+  -- not emerald, which is the resolver's own correct default and not what a
+  -- harness wants to observe.
+  mod.exports.emeraldTrainerIdFor = function(speaker)
+    return Emerald.trainerIdFor(speaker)
+  end
+  mod.exports.emeraldArtFor = function(speaker, opts)
+    return Emerald.artFor(speaker, opts or { force = true })
+  end
+  mod.exports.emeraldTrainerIds = function()
+    return Emerald.trainerIds()
+  end
+  -- The rectangle rectFor would cut a picture with, plus WHICH table answered.
+  -- Exported so a driver can prove the Emerald path consults the Emerald table
+  -- (and not the FireRed one) without having to eyeball a box -- the two id
+  -- spaces overlap, so "a portrait appeared" is not evidence on its own.
+  --
+  -- `emu` forces the Emerald branch so a suite can observe it against whatever
+  -- id the harness booted with, the same reason emeraldArtFor takes `force`.
+  mod.exports.cropFor = function(kind, key, speaker, emu)
+    if emu and CROPS_E then
+      local side = speaker and speaker.gfx ~= nil and CROPS_E.pairSide
+        and CROPS_E.pairSide[tonumber(speaker.gfx)]
+      local pr = side and CROPS_E.pairs
+        and asRect(CROPS_E.pairs[key] and CROPS_E.pairs[key][side])
+      if pr then return pr, "emerald/pairs" end
+      local tr = type(CROPS_E.trainers) == "table" and asRect(CROPS_E.trainers[key])
+      if tr then return tr, "emerald/trainers" end
+      return asRect(CROPS_E.defaults and CROPS_E.defaults[kind]), "emerald/defaults"
+    end
+    return rectFor(kind, key, speaker), (CROPS_E and isEmeraldBoot()) and "emerald" or "frlg"
+  end
+  mod.exports.hasEmeraldCrops = function() return CROPS_E ~= nil end
+  -- A read-only window onto the live draw state, so a driver can prove a REAL
+  -- dialogue box ended up with a portrait rather than inferring it from the
+  -- resolver.  Returns a plain descriptor (never the live table) so a caller
+  -- cannot mutate the box's own state through it.
+  mod.exports.activePortrait = function()
+    if not activePortrait then return nil end
+    return {
+      pic = activePortrait.pic,
+      w = activePortrait.w,
+      h = activePortrait.h,
+      side = activeSide,
+      hasImage = activePortrait.image ~= nil,
+      custom = activePortrait.custom and true or false,
+      -- The shipped-art file stem when route 3b answered (Professor Birch), else
+      -- nil.  Present so a verifier can tell "face drawn from shipped art" from
+      -- "no face at all" -- both of which show pic = nil.
+      asset = activePortrait.asset,
+      -- "firered" when route 7 borrowed a FireRed bust, else nil -- so a verifier
+      -- can tell a borrowed `pic` (a FireRed id) from an Emerald one.
+      share = activePortrait.share,
+    }
+  end
+  -- WHICH GATE said no, for a driver.  The three inputs Message.show reads
+  -- before it ever asks for a picture, plus the two answers speakerFor and
+  -- portraitFor gave -- so a bare box on a real boot is never a mystery.  It is
+  -- a diagnostic and takes no part in the draw path.
+  mod.exports.debugGate = function(text, opts)
+    local style = opt and opt("style", "inset") or "inset"
+    local out = { style = style, frame = frameFromOpts(opts),
+                  colours = coloursAllowPortrait(opts, text),
+                  npcColor = type(opts) == "table" and opts.npcColor or nil,
+                  npcColorType = type(opts) == "table" and type(opts.npcColor) or nil }
+    if style ~= "off" and out.frame == "dialogue" and out.colours then
+      local sp = speakerFor(text)
+      out.speaker = sp and { gfx = sp.gfx, sprite = sp.sprite, scriptKey = sp.scriptKey,
+                             mapId = sp.mapId, name = sp.name, class = sp.class,
+                             hasObject = sp.object ~= nil } or false
+      if sp then
+        local art = portraitFor(sp)
+        out.portrait = art and { pic = art.pic, hasImage = art.image ~= nil } or false
+      end
+    end
+    out.pressSpeaker = type(pressSpeaker) == "table"
+      and { gfx = pressSpeaker.graphicsId, scriptKey = pressSpeaker.scriptKey } or false
+    return out
+  end
 
   mod.log:info("dialogue portraits (gen 3) installed")
 end
