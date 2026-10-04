@@ -67,7 +67,7 @@ to cut a release. [`CHANGELOG.md`](CHANGELOG.md) is the history.
 From an engine checkout with the mod beside it:
 
 ```sh
-# the eight headless suites -- 1406 checks, 0 failures
+# the eight headless suites -- 1443 checks, 0 failures
 luajit ../gen3-dialogue-portraits/tests/dp3_load_test.lua
 luajit ../gen3-dialogue-portraits/tests/dp3_menu_test.lua
 luajit ../gen3-dialogue-portraits/tests/dp3_speaker_test.lua

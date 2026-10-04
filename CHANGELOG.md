@@ -140,7 +140,8 @@ module instance. `.modkitignore` gained the new suite.
 ### FRLG untouched
 
 Every change is additive and gated on the Emerald branch; a FireRed or LeafGreen
-boot enters none of it. Full run: **1406 checks, 0 failures**;
+boot enters none of it. Full run: **1443 checks, 0 failures** (after main's
+1.3.2 field-move fix is merged in — 534 of those are the speaker suite);
 `modkit validate` / `lint` / `gen3check` all pass.
 
 ## 1.3.2-emerald — Birch's portrait actually draws
