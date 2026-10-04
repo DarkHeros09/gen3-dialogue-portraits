@@ -2,28 +2,16 @@
 
 ## 1.4.0 — Emerald support, and two boxes that wore the wrong face
 
-* **Fixed:** in the Champion's Room, after the player beats the Rival at the
-  Elite Four, the Rival's defeat line ("Why? Why did I lose?") showed Professor
-  Oak's portrait instead of his own. Oak walks in later in the same scene, and
-  his movement was being mistaken for the speaker of the earlier box. The
-  Rival's line now draws the Rival, and that portrait stays on screen until Oak
-  actually arrives and speaks. The rule that decides this reads the scene's
-  structure, not its name, so it covers the other 17 FireRed / LeafGreen
-  scripts shaped the same way — an actor on stage who is not one of the
-  newcomers the script itself adds.
-* **Fixed:** the engine's own system boxes no longer wear the last trainer you
-  spoke to. **Repel** wearing off, a Pokémon **fainting from poison** in the
-  field, and the **egg hatch** "Huh?" are the game talking, not a person, so
-  they now draw no portrait — even when a trainer's face is still on record
-  from a conversation a moment earlier. (The same guard also covers the field
-  moves shipped in 1.3.2.)
-* **New:** **Pokémon Emerald support.** The mod now runs on Emerald as well as
-  FireRed and LeafGreen.
-* **New:** **FireRed / LeafGreen art for Emerald's gaps.** With an FRLG ROM
-  imported, Emerald characters the Emerald cart never drew a portrait for
-  (scientists, the shop clerk, the painter and others) borrow one from that
-  cart's own art. Nothing is copied or shipped; there are no portraits without
-  an FRLG import.
+* **Fixed:** the Rival's post-Elite-Four line showed Professor Oak's portrait
+  instead of his own — Oak's movement later in the same scene was mistaken for
+  his. Covers the other 17 FireRed / LeafGreen scenes shaped the same way.
+* **Fixed:** Repel wearing off, a poison faint and the egg hatch drew the last
+  trainer you spoke to. They are the game talking, not a person, so they now
+  draw no portrait.
+* **New:** **Pokémon Emerald support** — the mod now runs on Emerald too.
+* **New:** **FireRed / LeafGreen art for Emerald's gaps.** Characters the
+  Emerald cart never drew a portrait for borrow one from an imported FRLG ROM.
+  Nothing is copied or shipped.
 
 ## 1.3.2 — the field-move box stops wearing the last trainer you spoke to
 
